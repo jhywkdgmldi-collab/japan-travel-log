@@ -334,10 +334,12 @@ pre.out{
   <div class="card">
     <h3>✨ 무엇으로 뽑을까요?</h3>
     <div class="chips" id="expType">
-      <div class="chip on" data-x="blog">블로그용</div>
+      <div class="chip on" data-x="naver">📗 블로그 본문</div>
+      <div class="chip" data-x="seo">📌 제목 · 키워드</div>
       <div class="chip" data-x="insta">인스타 캡션</div>
       <div class="chip" data-x="clip">🎬 클립 자막</div>
       <div class="chip" data-x="plain">일정표</div>
+      <div class="chip" data-x="blog">마크다운</div>
       <div class="chip" data-x="csv">엑셀 CSV</div>
     </div>
     <div class="row" style="margin-top:14px">
@@ -1134,7 +1136,113 @@ function drawMoney(){
 }
 
 /* ══════════ 내보내기 ══════════ */
-let expType = 'blog';
+let expType = 'naver';
+
+/* ── 네이버 블로그용: # * > | 같은 기호 없이 본문만 ── */
+function fullDate(ds){
+  if(!ds) return '';
+  const d = new Date(ds+'T00:00:00');
+  const w = ['일','월','화','수','목','금','토'][d.getDay()];
+  return `${d.getFullYear()}년 ${d.getMonth()+1}월 ${d.getDate()}일 ${w}요일`;
+}
+function ampm(t){
+  if(!t) return '';
+  const [h,m] = t.split(':').map(Number);
+  return `${h<12?'오전':'오후'} ${h%12||12}:${String(m).padStart(2,'0')}`;
+}
+function naver(){
+  const g = {};
+  sorted().forEach(e=>(g[e.date] ||= []).push(e));
+  const tot = D.entries.reduce((s,e)=>s+krwOf(e),0);
+  const ppl = Math.max(1, Number(D.people)||1);
+  const L = '─'.repeat(24);
+
+  let out = `${D.title||'일본 여행'}\n`;
+  if(D.start) out += `${fullDate(D.start)} ~ ${fullDate(D.end)}  ·  ${ppl}명\n`;
+  out += `\n${L}\n\n`;
+
+  Object.keys(g).sort().forEach(d=>{
+    const list = g[d], sum = list.reduce((s,e)=>s+krwOf(e),0);
+    out += `${dayNo(d)?`Day ${dayNo(d)}  ·  `:''}${fullDate(d)}\n\n`;
+    list.forEach(e=>{
+      out += `${cat(e.cat).e} ${e.place||'이름 없는 곳'}${e.time?`   ${ampm(e.time)}`:''}\n\n`;
+      if(e.tag)  out += `${e.tag}\n\n`;
+      if(e.note) out += `${e.note}\n\n`;
+      if(e.tips){
+        out += `💡 참고\n`;
+        e.tips.split('\n').filter(t=>t.trim())
+          .forEach(t => out += `· ${t.replace(/^[·\-\s]+/,'')}\n`);
+        out += `\n`;
+      }
+      if(e.amt) out += `💴 ${e.cur==='JPY'
+        ? `${nf(e.amt)}엔 (약 ${nf(krwOf(e))}원)`
+        : `${nf(e.amt)}원`}  ·  ${e.pay}\n`;
+      if(e.lat) out += `📍 https://www.google.com/maps/search/?api=1&query=${e.lat},${e.lng}\n`;
+      out += `\n\n`;
+    });
+    out += `이날 쓴 돈  ${nf(sum)}원\n\n${L}\n\n`;
+  });
+
+  out += `💰 전체 정산\n\n`;
+  const by = {};
+  D.entries.filter(e=>e.amt>0).forEach(e=>{ by[e.cat]=(by[e.cat]||0)+krwOf(e); });
+  Object.keys(by).sort((a,b)=>by[b]-by[a])
+    .forEach(k => out += `${cat(k).e} ${k}   ${nf(by[k])}원\n`);
+  out += `\n합계   ${nf(tot)}원\n1인당   ${nf(tot/ppl)}원  (${ppl}명 기준)\n`;
+  return out;
+}
+
+/* ── 제목·키워드 도우미 ── */
+function seo(){
+  const tot = D.entries.reduce((s,e)=>s+krwOf(e),0);
+  const ppl = Math.max(1, Number(D.people)||1);
+  const region = (D.title||'')
+    .replace(/\d+\s*박\s*\d+\s*일|\d+일차|자유여행|여행기|여행|일정|기록/g,'')
+    .replace(/\s+/g,' ').trim() || '일본';
+  let period = '';
+  if(D.start && D.end){
+    const n = Math.round((new Date(D.end+'T00:00:00')-new Date(D.start+'T00:00:00'))/86400000)+1;
+    if(n>0) period = n>1 ? `${n-1}박${n}일` : '당일치기';
+  }
+  const uniq   = [...new Set(sorted().filter(e=>e.place).map(e=>e.place))];
+  const starred= [...new Set(sorted().filter(e=>e.tag && e.place).map(e=>e.place))];
+  const pick   = starred.length ? starred : uniq;
+  const L = '─'.repeat(24);
+
+  const titles = [
+    `${region} ${period} 코스 총정리 ${ppl}인 실제 경비 ${nf(tot)}원`,
+    pick[0] ? `${region} 자유여행 ${pick[0]}${pick[1]?` ${pick[1]}`:''} 솔직 후기` : '',
+    uniq.length>1 ? `${region} ${period} 일정 ${uniq[0]}부터 ${uniq[uniq.length-1]}까지` : '',
+    `${region} 여행 경비 정리 ${ppl}명 ${period} 실제로 쓴 돈`,
+    pick[0] ? `${region} 가볼만한곳 ${pick.slice(0,3).join(' ')} 후기` : ''
+  ].filter(t=>t.replace(/\s+/g,' ').trim().length>4);
+
+  const keys = [
+    `${region} ${period}`, `${region} 자유여행`, `${region} 여행코스`,
+    `${region} 여행경비`, `${region} 맛집`, ...uniq.slice(0,5)
+  ].filter(k=>k.trim());
+
+  let out = `📌 ${D.title||'일본 여행'} — 제목 · 키워드 도우미\n${L}\n\n`;
+  out += `✍️ 제목 후보 (하나 골라 다듬어 쓰세요)\n\n`;
+  titles.forEach((t,i)=> out += `${i+1}. ${t.replace(/\s+/g,' ').trim()}\n`);
+  out += `\n${L}\n\n🔑 제목·본문에 자연스럽게 넣을 말\n\n`;
+  out += keys.map(k=>k.replace(/\s+/g,' ').trim()).join(', ') + `\n`;
+  out += `\n${L}\n\n📊 진짜 인기 검색어는 여기서 확인하세요\n\n`;
+  out += `· 네이버 크리에이터 어드바이저\n`;
+  out += `  내 블로그 통계 → 크리에이터 어드바이저 → 검색 유입 트렌드\n`;
+  out += `  요즘 블로그로 사람들이 들어오는 검색어를 분야별·일간/주간/월간으로 볼 수 있어요\n\n`;
+  out += `· 네이버 데이터랩 (PC로 보는 걸 추천)\n`;
+  out += `  분야별 인기 검색어, 쇼핑인사이트 → 분야 통계\n`;
+  out += `  쓰려는 주제의 검색어와 클릭량 흐름을 볼 수 있어요\n`;
+  out += `\n${L}\n\n💡 제목 만들 때 기억할 것\n\n`;
+  out += `· 검색어를 그대로 베끼지 말고 내 경험을 붙이세요\n`;
+  out += `   그냥 "${region} 여행"  →  "${region} ${period} ${pick[0]||'○○'} 웨이팅 후기"\n`;
+  out += `· 숫자를 넣으면 눈에 띄어요 (금액 ${nf(tot)}원, 기다린 시간, 장소 개수)\n`;
+  out += `· 여행·패션처럼 계절 타는 주제는 작년 이맘때 월간 검색어가 힌트가 돼요\n`;
+  out += `· 데이터랩 클릭량 추이에서 내 주제가 어느 요일에 오르는지 보고,\n`;
+  out += `   그보다 며칠 앞서 발행해두면 흐름을 탈 수 있어요\n`;
+  return out;
+}
 $$('#expType .chip').forEach(c=>c.onclick=()=>{
   $$('#expType .chip').forEach(x=>x.classList.remove('on'));
   c.classList.add('on'); expType = c.dataset.x; drawExport();
@@ -1253,6 +1361,8 @@ function csv(){
 }
 function drawExport(){
   $('#expOut').textContent =
+    expType==='naver' ? naver()  :
+    expType==='seo'   ? seo()    :
     expType==='blog'  ? mdBlog() :
     expType==='insta' ? insta()  :
     expType==='clip'  ? clip()   :
@@ -1264,10 +1374,12 @@ function copyOut(){
     .catch(()=>toast('아래 글을 직접 드래그해서 복사해 주세요'));
 }
 function saveOut(){
-  const name = (D.title||'일본여행').replace(/[\\/:*?"<>|]/g,'');
+  const LBL = {naver:'블로그본문', seo:'제목키워드', insta:'인스타캡션',
+               clip:'클립자막', plain:'일정표', blog:'마크다운', csv:'엑셀'};
+  const name = (D.title||'일본여행').replace(/[\\/:*?"<>|]/g,'') + '_' + (LBL[expType]||expType);
   const ext  = expType==='csv' ? 'csv' : expType==='blog' ? 'md' : 'txt';
   const body = expType==='csv' ? '﻿'+$('#expOut').textContent : $('#expOut').textContent;
-  dl(`${name}_${expType}.${ext}`, body, 'text/plain;charset=utf-8');
+  dl(`${name}.${ext}`, body, 'text/plain;charset=utf-8');
 }
 function dl(name, text, mime){
   const b = new Blob([text], {type:(mime||'text/plain')+';charset=utf-8'});
