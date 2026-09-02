@@ -582,12 +582,28 @@ const jpyOf    = e => e.cur === 'JPY' ? Number(e.amt||0) : 0;
 async function fetchRate(loud, target){
   if(loud && target !== 'form') $('#todayRateBox').textContent = '환율을 가져오는 중이에요…';
   try{
-    const r = await fetch('https://api.frankfurter.app/latest?from=JPY&to=KRW');
-    const j = await r.json();
-    const v = Math.round(j.rates.KRW * 100 * 10) / 10;        // 100엔 기준, 소수 1자리
-    todayRate = { v, date: j.date };
+    let v = null, date = '', src = '';
+    /* ① 유럽중앙은행 고시 (Frankfurter) */
+    try{
+      const r = await fetch('https://api.frankfurter.dev/v1/latest?base=JPY&symbols=KRW');
+      const j = await r.json();
+      if(j?.rates?.KRW){ v = j.rates.KRW; date = j.date; src = '유럽중앙은행 고시'; }
+    }catch(_){}
+    /* ② 위가 안 되면 예비 경로 */
+    if(v === null){
+      const r = await fetch('https://open.er-api.com/v6/latest/JPY');
+      const j = await r.json();
+      if(!j?.rates?.KRW) throw new Error('환율 응답이 비어 있어요');
+      v = j.rates.KRW;
+      date = (j.time_last_update_utc||'').slice(5,16);
+      src = 'exchangerate-api';
+    }
+    v = Math.round(v * 100 * 10) / 10;                        // 100엔 기준, 소수 1자리
+    todayRate = { v, date };
     $('#todayRateBox').innerHTML =
-      `📈 오늘 기준 <b>100엔 = ${v}원</b> <span style="font-weight:600;opacity:.75">(${j.date}, 유럽중앙은행 고시)</span>`;
+      `📈 오늘 기준 <b>100엔 = ${v}원</b> <span style="font-weight:600;opacity:.75">(${date}, ${src})</span>`;
+    /* 아직 기록이 하나도 없으면 기본 환율도 오늘 값으로 맞춰둬요 */
+    if(!D.entries.length){ D.rate = v; $('#sRate').value = v; save(); }
     if(loud){
       if(target === 'form'){ $('#fRate').value = v; conv(); toast(`오늘 환율 ${v}원 넣었어요 💱`); }
       else { $('#sRate').value = v; D.rate = v; save(); renderAll(); toast(`기본 환율을 ${v}원으로 맞췄어요 💱`); }
