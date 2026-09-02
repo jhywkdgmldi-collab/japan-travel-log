@@ -1,0 +1,1325 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>일본여행 기록장</title>
+<meta name="theme-color" content="#FFE8F4">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Jua&display=swap" rel="stylesheet">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🧳</text></svg>">
+<style>
+:root{
+  /* GCA 3색 */
+  --magenta:#EC008C; --blue:#00AEEF; --yellow:#FFF200;
+  /* 파스텔 */
+  --p-pink:#FFE9F4; --p-blue:#E4F5FD; --p-yellow:#FFF7D4; --p-mint:#E3F7EE; --p-lilac:#F0EBFF;
+  /* 바탕 */
+  --bg:#FFFCF9; --card:#fff; --ink:#2B2A2E; --muted:#A69CA2; --line:#F2EAE4;
+  --shadow:0 2px 10px rgba(90,60,75,.05);
+  --shadow-up:0 4px 18px rgba(90,60,75,.09);
+  --r:20px;
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;padding:0}
+body{
+  font-family:'Pretendard','Apple SD Gothic Neo','Malgun Gothic','맑은 고딕',
+              -apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
+  background:var(--bg); color:var(--ink); font-size:15px; line-height:1.6;
+  -webkit-text-size-adjust:100%; letter-spacing:-.2px;
+}
+.cute{font-family:'Jua',var(--fallback),sans-serif;font-weight:400;letter-spacing:0}
+.wrap{max-width:720px;margin:0 auto;padding:0 16px calc(112px + env(safe-area-inset-bottom))}
+
+/* ── 헤더 ── */
+header{
+  background:linear-gradient(135deg,#FFE3F1 0%,#FFF0E0 42%,#E2F3FD 100%);
+  padding:calc(20px + env(safe-area-inset-top)) 16px 20px;
+  position:relative;overflow:hidden;
+}
+header::after{
+  content:'';position:absolute;right:-30px;top:-40px;width:150px;height:150px;
+  background:radial-gradient(circle,rgba(255,255,255,.75),transparent 70%);
+}
+header .inner{max-width:720px;margin:0 auto;position:relative;z-index:1}
+.brand{display:flex;align-items:center;gap:7px;font-size:12px;font-weight:800;color:#C4477F;margin-bottom:5px}
+.brand .dots{display:flex;gap:3px}
+.brand .dots i{width:7px;height:7px;border-radius:50%;display:block}
+#tripTitle{
+  font-size:25px;background:transparent;border:none;color:var(--ink);
+  width:100%;padding:0;outline:none;line-height:1.25;
+}
+#tripTitle::placeholder{color:#C9B9C1}
+.hdr-sub{font-size:12.5px;color:#8A7B84;margin-top:4px;font-weight:600}
+.hdr-stats{display:flex;gap:8px;margin-top:15px}
+.hstat{
+  flex:1;background:rgba(255,255,255,.82);border-radius:16px;padding:9px 11px;
+  box-shadow:0 2px 8px rgba(160,110,140,.08);
+}
+.hstat .k{font-size:10.5px;color:#A2939B;font-weight:700}
+.hstat .v{font-size:17px;margin-top:1px;color:var(--ink)}
+.hstat.m .v{color:var(--magenta)}
+
+/* ── 탭 ── */
+nav.tabs{
+  position:sticky;top:0;z-index:900;background:rgba(255,252,249,.93);
+  backdrop-filter:blur(10px);padding:9px 16px;display:flex;gap:6px;
+  overflow-x:auto;scrollbar-width:none;border-bottom:1px solid var(--line);
+}
+nav.tabs::-webkit-scrollbar{display:none}
+nav.tabs .t{
+  flex:0 0 auto;padding:8px 15px;border-radius:999px;font-size:13.5px;font-weight:700;
+  color:#9A8F96;background:#fff;border:1px solid var(--line);cursor:pointer;user-select:none;
+  white-space:nowrap;transition:.15s;
+}
+nav.tabs .t.on{color:#fff;background:var(--magenta);border-color:var(--magenta);box-shadow:0 3px 10px rgba(236,0,140,.28)}
+section.page{display:none;padding-top:18px}
+section.page.on{display:block;animation:fade .22s ease}
+@keyframes fade{from{opacity:0;transform:translateY(5px)}to{opacity:1;transform:none}}
+
+/* ── 공통 ── */
+.card{background:var(--card);border:1px solid var(--line);border-radius:var(--r);padding:16px;margin-bottom:12px;box-shadow:var(--shadow)}
+.card h3{margin:0 0 12px;font-size:15px;color:var(--ink);display:flex;align-items:center;gap:6px}
+label.f{display:block;font-size:12px;font-weight:800;color:#8A7B84;margin:14px 0 6px}
+label.f:first-child{margin-top:0}
+input[type=text],input[type=number],input[type=date],input[type=time],textarea,select{
+  width:100%;padding:11px 13px;border:1.5px solid var(--line);border-radius:14px;
+  font-size:15px;font-family:inherit;background:#FFFDFB;color:var(--ink);outline:none;transition:.15s;
+}
+input:focus,textarea:focus,select:focus{border-color:#FFB8DC;background:#fff;box-shadow:0 0 0 4px rgba(236,0,140,.07)}
+textarea{resize:vertical;min-height:70px;line-height:1.65}
+.btn{
+  display:inline-flex;align-items:center;justify-content:center;gap:6px;
+  padding:12px 18px;border-radius:999px;border:none;background:var(--magenta);color:#fff;
+  font-size:14.5px;font-weight:800;font-family:inherit;cursor:pointer;transition:.15s;
+  box-shadow:0 3px 12px rgba(236,0,140,.26);
+}
+.btn:active{transform:scale(.97)}
+.btn.sec{background:#fff;color:#7E727A;border:1.5px solid var(--line);box-shadow:none}
+.btn.blue{background:var(--blue);box-shadow:0 3px 12px rgba(0,174,239,.26)}
+.btn.gray{background:#8D8189;box-shadow:none}
+.btn.sm{padding:8px 14px;font-size:13px}
+.btn.full{width:100%}
+.btn.danger{background:#fff;color:#E0576B;border:1.5px solid #FBDDE2;box-shadow:none}
+.row{display:flex;gap:8px}
+.row>*{flex:1;min-width:0}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip{
+  padding:8px 13px;border-radius:999px;border:1.5px solid var(--line);background:#fff;
+  font-size:13px;font-weight:700;cursor:pointer;color:#8A7B84;user-select:none;transition:.13s;
+}
+.chip.on{color:#fff;border-color:transparent;transform:translateY(-1px)}
+.chip.on{background:var(--magenta);box-shadow:0 3px 9px rgba(236,0,140,.25)}
+.chip.blue.on{background:var(--blue);box-shadow:0 3px 9px rgba(0,174,239,.25)}
+.muted{color:var(--muted);font-size:12.5px;line-height:1.6}
+.hr{height:1px;background:var(--line);margin:15px 0}
+.ok{color:#17A05B;font-size:12.5px;font-weight:800}
+
+/* ── 기록 ── */
+.daygroup{margin-bottom:24px}
+.dayhead{display:flex;align-items:center;gap:9px;margin:0 4px 11px}
+.dayhead .badge{
+  background:var(--yellow);color:#57530A;font-size:11.5px;font-weight:900;
+  padding:3px 11px;border-radius:7px;transform:rotate(-2.5deg);
+  box-shadow:0 2px 6px rgba(180,170,0,.22);
+}
+.dayhead .d{font-size:17px}
+.dayhead .sum{margin-left:auto;font-size:13px;font-weight:800;color:var(--magenta);white-space:nowrap}
+.entry{
+  background:var(--card);border:1px solid var(--line);border-radius:var(--r);
+  padding:14px;margin-bottom:9px;box-shadow:var(--shadow);
+}
+.entry .top{display:flex;align-items:flex-start;gap:10px}
+.ic{
+  flex:0 0 auto;width:38px;height:38px;border-radius:13px;display:flex;
+  align-items:center;justify-content:center;font-size:19px;
+}
+.entry .tt{flex:1;min-width:0}
+.entry .time{font-size:11.5px;font-weight:800;color:var(--blue);font-variant-numeric:tabular-nums}
+.entry .place{font-size:16px;font-weight:800;line-height:1.35;word-break:keep-all}
+.entry .tagline{
+  font-size:13.5px;color:#C4477F;font-weight:700;margin-top:3px;line-height:1.5;
+  word-break:keep-all;
+}
+.entry .amt{text-align:right;white-space:nowrap;flex:0 0 auto}
+.entry .amt b{font-size:15px;font-variant-numeric:tabular-nums}
+.entry .amt small{display:block;font-size:11px;font-weight:700;color:var(--muted)}
+.entry .note{
+  margin-top:10px;background:var(--p-yellow);border-radius:12px;padding:9px 12px;
+  font-size:14px;color:#5A5343;white-space:pre-wrap;line-height:1.6;word-break:keep-all;
+}
+.entry .note::before{content:'✏️ ';font-size:12px}
+.entry .tips{
+  margin-top:7px;background:var(--p-blue);border-radius:12px;padding:9px 12px;
+  font-size:13.5px;color:#0A6E93;white-space:pre-wrap;line-height:1.6;word-break:keep-all;
+}
+.entry .tips::before{content:'💡 ';font-size:12px}
+.revbox{margin-top:8px;border:1.5px solid var(--line);border-radius:14px;overflow:hidden;background:#fff}
+.revbox .r{padding:10px 12px;border-bottom:1px solid var(--line);font-size:13px;line-height:1.55;cursor:pointer}
+.revbox .r:last-child{border-bottom:none}
+.revbox .r:active{background:var(--p-blue)}
+.revbox .r .s{font-size:11.5px;font-weight:800;color:#F5B924}
+.revbox .hd{padding:9px 12px;background:var(--p-blue);font-size:12px;font-weight:800;color:#0A6E93}
+.entry .meta{margin-top:9px;display:flex;gap:5px;flex-wrap:wrap;align-items:center}
+.tag{font-size:11px;font-weight:800;background:#F8F4F1;color:#9A8F96;padding:3px 9px;border-radius:8px;text-decoration:none}
+.tag.a{background:var(--p-pink);color:#C4477F}
+.tag.b{background:var(--p-blue);color:#0089BC}
+.tag.w{background:#FFF0F0;color:#D96A79}
+.thumbs{display:flex;gap:7px;margin-top:10px;flex-wrap:wrap}
+.thumbs img{width:66px;height:66px;object-fit:cover;border-radius:14px;border:1.5px solid var(--line);cursor:pointer;display:block}
+.thumbs .rc{position:relative;display:block}
+.thumbs .rc::after{
+  content:'🧾';position:absolute;right:-4px;top:-4px;background:#fff;border-radius:50%;
+  width:20px;height:20px;font-size:11px;display:flex;align-items:center;justify-content:center;
+  box-shadow:0 1px 4px rgba(0,0,0,.16);
+}
+.entry .acts{margin-top:11px;display:flex;gap:6px}
+
+/* ── 지도 ── */
+#map{height:60vh;min-height:330px;border-radius:var(--r);border:1px solid var(--line);z-index:1;box-shadow:var(--shadow)}
+.leaflet-popup-content-wrapper{border-radius:16px}
+.leaflet-popup-content{margin:12px 14px;font-family:inherit;font-size:13px;line-height:1.6}
+.leaflet-popup-content b{font-size:14.5px}
+.pin{
+  background:var(--magenta);color:#fff;width:28px;height:28px;border-radius:50% 50% 50% 3px;
+  transform:rotate(-45deg);display:flex;align-items:center;justify-content:center;
+  font-size:12px;font-weight:900;border:2.5px solid #fff;box-shadow:0 3px 7px rgba(0,0,0,.28);
+}
+.pin span{transform:rotate(45deg)}
+
+/* ── 정산 ── */
+.bigsum{text-align:center;padding:8px 0 14px}
+.bigsum .krw{font-size:34px;color:var(--magenta);line-height:1.15}
+.bigsum .jpy{font-size:13px;color:var(--muted);font-weight:700;margin-top:4px}
+.bar{margin-bottom:11px}
+.bar .l{display:flex;font-size:13px;font-weight:800;margin-bottom:4px;gap:6px}
+.bar .l .r{margin-left:auto;font-variant-numeric:tabular-nums;color:#9A8F96;font-weight:700}
+.bar .track{height:10px;background:#F6F1ED;border-radius:99px;overflow:hidden}
+.bar .fill{height:100%;border-radius:99px;transition:width .4s ease}
+table.tb{width:100%;border-collapse:collapse;font-size:13.5px}
+table.tb th,table.tb td{padding:9px 4px;border-bottom:1px solid var(--line);text-align:left}
+table.tb tr:last-child td{border-bottom:none}
+table.tb td.n{text-align:right;font-variant-numeric:tabular-nums;font-weight:800}
+.ratebox{background:var(--p-blue);border-radius:14px;padding:11px 13px;font-size:12.5px;color:#0A6E93;font-weight:700;line-height:1.6}
+
+/* ── 내보내기 ── */
+pre.out{
+  background:#fff;border:1px solid var(--line);border-radius:var(--r);padding:14px;
+  font-size:12px;line-height:1.7;white-space:pre-wrap;word-break:break-all;
+  max-height:340px;overflow:auto;font-family:'D2Coding',Consolas,monospace;box-shadow:var(--shadow);
+}
+
+/* ── 시트 ── */
+.sheet{position:fixed;inset:0;background:rgba(60,40,50,.4);z-index:2000;display:none;align-items:flex-end;justify-content:center;backdrop-filter:blur(2px)}
+.sheet.on{display:flex}
+.sheet .box{
+  background:var(--bg);width:100%;max-width:720px;max-height:92vh;overflow:auto;
+  border-radius:26px 26px 0 0;padding:10px 16px calc(26px + env(safe-area-inset-bottom));
+  box-shadow:0 -8px 30px rgba(80,50,65,.18);animation:up .26s cubic-bezier(.3,1,.5,1);
+}
+@keyframes up{from{transform:translateY(40px);opacity:.5}to{transform:none;opacity:1}}
+.grip{width:40px;height:4px;background:#E8DED6;border-radius:99px;margin:0 auto 12px}
+.sheet .box h2{margin:0 0 3px;font-size:19px}
+.lightbox{position:fixed;inset:0;background:rgba(20,10,15,.92);z-index:3000;display:none;align-items:center;justify-content:center;padding:16px}
+.lightbox.on{display:flex}
+.lightbox img{max-width:100%;max-height:92vh;border-radius:14px}
+
+/* ── 하단 버튼 ── */
+.fabbar{
+  position:fixed;left:0;right:0;bottom:0;z-index:1000;
+  background:linear-gradient(to top,var(--bg) 62%,transparent);
+  padding:14px 16px calc(16px + env(safe-area-inset-bottom));
+}
+.fabbar .in{max-width:720px;margin:0 auto}
+.empty{text-align:center;color:var(--muted);padding:52px 20px;font-size:14px;line-height:1.8}
+.empty .e{font-size:52px;display:block;margin-bottom:10px}
+.geo-res{border:1.5px solid var(--line);border-radius:14px;overflow:hidden;margin-top:7px;background:#fff}
+.geo-res div{padding:10px 12px;font-size:13px;cursor:pointer;border-bottom:1px solid var(--line);line-height:1.5}
+.geo-res div:last-child{border-bottom:none}
+.geo-res div:active{background:var(--p-pink)}
+.toast{
+  position:fixed;left:50%;bottom:96px;transform:translateX(-50%) translateY(14px);
+  background:#3A3238;color:#fff;padding:11px 20px;border-radius:999px;font-size:13.5px;font-weight:700;
+  z-index:4000;opacity:0;pointer-events:none;transition:.28s;box-shadow:0 6px 20px rgba(0,0,0,.25);
+  max-width:88vw;text-align:center;
+}
+.toast.on{opacity:1;transform:translateX(-50%) translateY(0)}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="inner">
+    <div class="brand">
+      <span class="dots">
+        <i style="background:#EC008C"></i><i style="background:#00AEEF"></i><i style="background:#FFF200"></i>
+      </span>
+      일본여행 기록장
+    </div>
+    <input id="tripTitle" class="cute" placeholder="여행 제목을 적어주세요">
+    <div class="hdr-sub" id="tripPeriod">날짜를 설정해 주세요</div>
+    <div class="hdr-stats">
+      <div class="hstat m"><div class="k">총 지출</div><div class="v cute" id="hsKRW">0원</div></div>
+      <div class="hstat"><div class="k">엔화</div><div class="v cute" id="hsJPY">¥0</div></div>
+      <div class="hstat"><div class="k">기록</div><div class="v cute" id="hsCnt">0개</div></div>
+    </div>
+  </div>
+</header>
+
+<nav class="tabs">
+  <div class="t on" data-p="log">📝 기록</div>
+  <div class="t" data-p="map">🗺 지도</div>
+  <div class="t" data-p="money">💰 정산</div>
+  <div class="t" data-p="share">📤 내보내기</div>
+  <div class="t" data-p="set">⚙️ 설정</div>
+</nav>
+
+<div class="wrap">
+
+<!-- ═══ 기록 ═══ -->
+<section class="page on" id="p-log">
+  <div id="logList"></div>
+</section>
+
+<!-- ═══ 지도 ═══ -->
+<section class="page" id="p-map">
+  <div class="card" style="padding:13px 14px">
+    <div class="row" style="align-items:flex-end">
+      <div style="flex:2">
+        <label class="f">어느 날을 볼까요?</label>
+        <select id="mapDay"></select>
+      </div>
+      <button class="btn sec sm" style="flex:1" onclick="fitMap()">전체 보기</button>
+    </div>
+  </div>
+  <div id="map"></div>
+  <div class="card" style="margin-top:12px">
+    <h3>🌏 구글맵으로 넘기기</h3>
+    <div class="row">
+      <button class="btn blue sm" onclick="openGoogleRoute()">동선 열기</button>
+      <button class="btn sec sm" onclick="dl('여행동선.kml', buildKML(), 'application/vnd.google-earth.kml+xml')">KML 저장</button>
+    </div>
+    <p class="muted" style="margin:11px 0 0">
+      KML 파일은 <b>구글 마이맵(google.com/mymaps)</b>에 그대로 올리면 내 지도가 돼요.
+      블로그에 지도 넣을 때 딱이에요 🗺
+    </p>
+  </div>
+</section>
+
+<!-- ═══ 정산 ═══ -->
+<section class="page" id="p-money">
+  <div class="card">
+    <div class="bigsum">
+      <div class="krw cute" id="mTotalKRW">0원</div>
+      <div class="jpy" id="mTotalJPY">아직 지출 기록이 없어요</div>
+    </div>
+    <table class="tb">
+      <tr><td>1인당 (<span id="mPeopleN">1</span>명)</td><td class="n" id="mPer">0원</td></tr>
+      <tr><td>하루 평균</td><td class="n" id="mDaily">0원</td></tr>
+      <tr><td>기록 1건 평균</td><td class="n" id="mAvg">0원</td></tr>
+    </table>
+  </div>
+  <div class="card"><h3>💱 적용된 환율</h3><div id="mRate"></div></div>
+  <div class="card"><h3>🍡 카테고리별</h3><div id="mCat"></div></div>
+  <div class="card"><h3>📅 날짜별</h3><div id="mDate"></div></div>
+  <div class="card"><h3>💳 결제수단별</h3><div id="mPay"></div></div>
+  <div class="card"><h3>🧾 영수증 체크</h3><div id="mReceipt"></div></div>
+</section>
+
+<!-- ═══ 내보내기 ═══ -->
+<section class="page" id="p-share">
+  <div class="card">
+    <h3>✨ 무엇으로 뽑을까요?</h3>
+    <div class="chips" id="expType">
+      <div class="chip on" data-x="blog">블로그용</div>
+      <div class="chip" data-x="insta">인스타 캡션</div>
+      <div class="chip" data-x="clip">🎬 클립 자막</div>
+      <div class="chip" data-x="plain">일정표</div>
+      <div class="chip" data-x="csv">엑셀 CSV</div>
+    </div>
+    <div class="row" style="margin-top:14px">
+      <button class="btn sm" onclick="copyOut()">복사하기</button>
+      <button class="btn sec sm" onclick="saveOut()">파일로 저장</button>
+    </div>
+  </div>
+  <pre class="out" id="expOut"></pre>
+  <div class="card">
+    <h3>💾 백업 · 옮기기</h3>
+    <p class="muted" style="margin:0 0 12px">
+      기록은 이 브라우저 안에만 저장돼요. 폰↔노트북 옮기거나 안전하게 보관하려면 백업을 받아두세요.
+    </p>
+    <div class="row">
+      <button class="btn gray sm" onclick="backup()">백업 저장</button>
+      <button class="btn sec sm" onclick="$('#impFile').click()">백업 불러오기</button>
+    </div>
+    <input type="file" id="impFile" accept=".json" hidden>
+  </div>
+</section>
+
+<!-- ═══ 설정 ═══ -->
+<section class="page" id="p-set">
+  <div class="card">
+    <h3>🧳 여행 정보</h3>
+    <label class="f">여행 제목</label>
+    <input type="text" id="sTitle" placeholder="오사카 3박4일">
+    <div class="row">
+      <div><label class="f">출발일</label><input type="date" id="sStart"></div>
+      <div><label class="f">도착일</label><input type="date" id="sEnd"></div>
+    </div>
+    <label class="f">함께 간 인원</label>
+    <input type="number" id="sPeople" min="1" placeholder="2">
+  </div>
+
+  <div class="card">
+    <h3>💱 환율</h3>
+    <div class="ratebox" id="todayRateBox">오늘 환율을 가져오는 중이에요…</div>
+    <label class="f">기본 환율 (100엔 = ? 원)</label>
+    <div class="row">
+      <input type="number" id="sRate" step="0.1" placeholder="920" style="flex:2">
+      <button class="btn sec sm" style="flex:1" onclick="fetchRate(true)">새로 가져오기</button>
+    </div>
+    <p class="muted" style="margin:10px 0 0">
+      기록을 남길 때 <b>그 시점 환율이 각각 따로 저장</b>돼요. 여행 중 환율이 매일 달라져도 정확하게 정산돼요.<br>
+      나중에 카드 청구서 환율로 통일하고 싶다면 아래 버튼을 눌러주세요.
+    </p>
+    <button class="btn sec sm full" style="margin-top:11px" onclick="applyRateAll()">모든 기록에 기본 환율 적용하기</button>
+  </div>
+
+  <div class="card">
+    <h3>🔍 구글 리뷰 자동 불러오기 <span style="font-size:11px;color:#B7A7B0;font-weight:600">선택</span></h3>
+    <p class="muted" style="margin:0 0 11px">
+      비워두셔도 괜찮아요. 기록 화면의 <b>「구글 리뷰 보러가기」</b> 버튼은 키 없이도 잘 동작해요.<br>
+      키를 넣으면 <b>별점과 리뷰가 앱 안으로 바로</b> 들어와서, 마음에 드는 코멘트만 눌러 팁에 담을 수 있어요.
+    </p>
+    <label class="f">Google Places API 키</label>
+    <input type="text" id="sGkey" placeholder="AIza... (없으면 비워두세요)">
+    <p class="muted" style="margin:10px 0 0">
+      키는 이 브라우저에만 저장돼요. 발급은
+      <a href="https://console.cloud.google.com/" target="_blank" rel="noopener" style="color:var(--blue);font-weight:700">구글 클라우드 콘솔</a>
+      에서 <b>Places API (New)</b> 를 켜면 돼요. 필요하시면 같이 해드릴게요 🙂
+    </p>
+  </div>
+
+  <div class="card">
+    <h3>📦 저장 공간</h3>
+    <div id="storeInfo" class="muted"></div>
+    <div class="hr"></div>
+    <button class="btn danger sm full" onclick="wipe()">전체 기록 지우기</button>
+  </div>
+
+  <div class="card">
+    <h3>💡 사용 팁</h3>
+    <p class="muted" style="margin:0">
+      · 사진은 자동으로 작게 줄여서 저장돼요<br>
+      · 「지금 내 위치」는 https 주소에서만 동작해요<br>
+      · 장소 검색·환율은 인터넷이 있어야 해요. 오프라인이면 나중에 채워도 괜찮아요
+    </p>
+  </div>
+</section>
+
+</div><!-- /wrap -->
+
+<div class="fabbar"><div class="in">
+  <button class="btn full" onclick="openForm()">＋ 새 기록 남기기</button>
+</div></div>
+
+<!-- ═══ 입력 시트 ═══ -->
+<div class="sheet" id="sheet">
+  <div class="box">
+    <div class="grip"></div>
+    <h2 class="cute" id="fTitle">새 기록</h2>
+    <p class="muted" style="margin:0 0 14px">다녀온 곳 · 쓴 돈 · 한 줄 느낌만 남겨두면 나중에 글이 돼요 ✍️</p>
+
+    <div class="card">
+      <label class="f">어디였어요?</label>
+      <div class="row">
+        <input type="text" id="fPlace" placeholder="예: 도톤보리 이치란" style="flex:3">
+        <button class="btn sec sm" style="flex:1" onclick="geoSearch()">🔍 검색</button>
+      </div>
+      <div id="geoRes"></div>
+      <div class="row" style="margin-top:9px">
+        <button class="btn sec sm" onclick="useGPS()">📍 지금 내 위치</button>
+        <button class="btn sec sm" onclick="pickOnMap()">🗺 지도에서 찍기</button>
+      </div>
+      <div id="fCoordInfo" class="muted" style="margin-top:9px">위치 없음 (없어도 저장돼요)</div>
+    </div>
+
+    <div class="card">
+      <label class="f">종류</label>
+      <div class="chips" id="fCat"></div>
+
+      <label class="f">얼마 썼어요?</label>
+      <div class="row">
+        <input type="number" id="fAmt" placeholder="0" inputmode="decimal" style="flex:3">
+        <div class="chips" style="flex:1;flex-wrap:nowrap" id="fCur">
+          <div class="chip blue on" data-c="JPY">¥</div>
+          <div class="chip blue" data-c="KRW">₩</div>
+        </div>
+      </div>
+
+      <div id="fRateWrap">
+        <label class="f">이때 환율 (100엔 = ? 원)</label>
+        <div class="row">
+          <input type="number" id="fRate" step="0.1" style="flex:2">
+          <button class="btn sec sm" style="flex:1" onclick="fetchRate(true,'form')">오늘 환율</button>
+        </div>
+      </div>
+      <div class="muted" id="fConv" style="margin-top:8px">＝ 0원</div>
+
+      <label class="f">결제</label>
+      <div class="chips" id="fPay"></div>
+    </div>
+
+    <div class="card">
+      <label class="f">✨ 이곳의 한줄
+        <span style="font-weight:600;color:#B7A7B0">· 블로그 소제목 · 클립 자막으로 바로 쓰여요</span></label>
+      <input type="text" id="fTag" placeholder="예: 40분 줄 서도 아깝지 않은 라멘">
+
+      <label class="f">한 줄 기록
+        <span style="font-weight:600;color:#B7A7B0">· 나만 보는 느낌 메모</span></label>
+      <textarea id="fNote" placeholder="줄 서서 40분 기다렸는데 국물이 진짜… 다음에 또 옴"></textarea>
+
+      <label class="f">💡 참고 · 팁
+        <span style="font-weight:600;color:#B7A7B0">· 리뷰에서 본 장단점 · 꿀팁</span></label>
+      <div class="row">
+        <button class="btn sec sm" onclick="openReviews()">🔍 구글 리뷰 보러가기</button>
+        <button class="btn sec sm" id="btnFetchRev" onclick="fetchReviews()">✨ 리뷰 불러오기</button>
+      </div>
+      <div id="revRes"></div>
+      <textarea id="fTips" placeholder="예: 웨이팅 앱으로 미리 등록 가능 / 1층은 흡연석 / 현금만 받음" style="margin-top:8px"></textarea>
+
+      <label class="f">사진 · 영수증</label>
+      <div class="row">
+        <button class="btn sec sm" onclick="$('#fPhoto').click()">🖼 사진 추가</button>
+        <button class="btn sec sm" onclick="$('#fRcpt').click()">🧾 영수증 찍기</button>
+      </div>
+      <input type="file" id="fPhoto" accept="image/*" multiple hidden>
+      <input type="file" id="fRcpt" accept="image/*" capture="environment" hidden>
+      <div class="thumbs" id="fThumbs"></div>
+    </div>
+
+    <div class="card">
+      <div class="row">
+        <div><label class="f">날짜</label><input type="date" id="fDate"></div>
+        <div><label class="f">시간</label><input type="time" id="fTime"></div>
+      </div>
+    </div>
+
+    <div class="row">
+      <button class="btn sec" onclick="closeForm()">닫기</button>
+      <button class="btn" style="flex:2" onclick="saveEntry()">저장하기</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ 지도에서 찍기 ═══ -->
+<div class="sheet" id="pickSheet">
+  <div class="box">
+    <div class="grip"></div>
+    <h2 class="cute">지도에서 위치 찍기</h2>
+    <p class="muted" style="margin:0 0 11px">지도를 눌러 핀을 놓아주세요 📍</p>
+    <div id="pickMap" style="height:50vh;border-radius:18px;border:1px solid var(--line)"></div>
+    <div class="row" style="margin-top:13px">
+      <button class="btn sec" onclick="$('#pickSheet').classList.remove('on')">취소</button>
+      <button class="btn" style="flex:2" onclick="confirmPick()">이 위치로</button>
+    </div>
+  </div>
+</div>
+
+<div class="lightbox" id="lightbox" onclick="this.classList.remove('on')"><img id="lbImg"></div>
+<div class="toast" id="toast"></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js"></script>
+<script>
+/* ══════════ 기본 도구 ══════════ */
+const $  = s => document.querySelector(s);
+const $$ = s => [...document.querySelectorAll(s)];
+const KEY = 'jp-travel-log-v1';
+
+const CATS = [
+  {k:'식사',  e:'🍜', c:'#FF7BA9', bg:'#FFE9F1'},
+  {k:'카페',  e:'☕', c:'#C08552', bg:'#F7EDE3'},
+  {k:'교통',  e:'🚆', c:'#4FB8E8', bg:'#E4F5FD'},
+  {k:'숙박',  e:'🏨', c:'#A78BFA', bg:'#F0EBFF'},
+  {k:'쇼핑',  e:'🛍', c:'#F5B924', bg:'#FFF6DE'},
+  {k:'관광',  e:'⛩', c:'#4ECB8F', bg:'#E3F7EE'},
+  {k:'편의점',e:'🏪', c:'#7DAFFC', bg:'#E8F0FF'},
+  {k:'기타',  e:'📌', c:'#B0AAB5', bg:'#F4F1F3'}
+];
+const PAYS = ['현금', '신용카드', '트래블카드', 'IC교통카드', '선결제'];
+
+let D = { title:'', start:'', end:'', rate:920, people:1, gkey:'', entries:[] };
+let todayRate = null;      // 오늘 자동으로 가져온 환율 {v, date}
+let editId = null;
+let form = { lat:null, lng:null, addr:'', cur:'JPY', cat:'식사', pay:'현금', photos:[], receipt:null };
+let map, pickMap, pickMarker, layerGroup;
+
+/* ══════════ 저장 ══════════ */
+function load(){
+  try{ const r = localStorage.getItem(KEY); if(r) D = Object.assign(D, JSON.parse(r)); }
+  catch(e){ console.warn(e); }
+}
+function save(){
+  try{ localStorage.setItem(KEY, JSON.stringify(D)); }
+  catch(e){
+    alert('저장 공간이 가득 찼어요 😢\n\n[내보내기 → 백업 저장]으로 파일을 받아두신 뒤,\n사진이 많은 오래된 기록을 정리해 주세요.');
+  }
+}
+function toast(msg){
+  const t = $('#toast'); t.textContent = msg; t.classList.add('on');
+  clearTimeout(t._h); t._h = setTimeout(()=>t.classList.remove('on'), 2400);
+}
+
+/* ══════════ 환율 ══════════ */
+const baseRate = () => Number(D.rate) || 920;                 // 100엔 기준
+const rateOf   = e => Number(e.rate) || baseRate();           // 기록별 환율(100엔 기준)
+const krwOf    = e => e.cur === 'KRW' ? Number(e.amt||0) : Number(e.amt||0) * rateOf(e) / 100;
+const jpyOf    = e => e.cur === 'JPY' ? Number(e.amt||0) : 0;
+
+async function fetchRate(loud, target){
+  if(loud && target !== 'form') $('#todayRateBox').textContent = '환율을 가져오는 중이에요…';
+  try{
+    const r = await fetch('https://api.frankfurter.app/latest?from=JPY&to=KRW');
+    const j = await r.json();
+    const v = Math.round(j.rates.KRW * 100 * 10) / 10;        // 100엔 기준, 소수 1자리
+    todayRate = { v, date: j.date };
+    $('#todayRateBox').innerHTML =
+      `📈 오늘 기준 <b>100엔 = ${v}원</b> <span style="font-weight:600;opacity:.75">(${j.date}, 유럽중앙은행 고시)</span>`;
+    if(loud){
+      if(target === 'form'){ $('#fRate').value = v; conv(); toast(`오늘 환율 ${v}원 넣었어요 💱`); }
+      else { $('#sRate').value = v; D.rate = v; save(); renderAll(); toast(`기본 환율을 ${v}원으로 맞췄어요 💱`); }
+    }
+  }catch(e){
+    $('#todayRateBox').innerHTML =
+      '환율을 못 가져왔어요. 인터넷을 확인하거나 아래에 직접 적어주세요 🙏';
+    if(loud && target === 'form') toast('환율을 못 가져왔어요. 직접 적어주세요');
+  }
+}
+function applyRateAll(){
+  const v = baseRate();
+  if(!confirm(`모든 기록의 환율을 100엔 = ${v}원 으로 통일할까요?\n(기록마다 따로 저장된 환율은 사라져요)`)) return;
+  D.entries.forEach(e => e.rate = v);
+  save(); renderAll(); toast('전체 환율을 맞췄어요 ✨');
+}
+
+/* ══════════ 표시 도우미 ══════════ */
+const nf   = n => Math.round(n).toLocaleString('ko-KR');
+const cat  = k => CATS.find(c=>c.k===k) || CATS[7];
+const esc  = s => String(s??'').replace(/[&<>"]/g, m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[m]));
+const sorted = () => [...D.entries].sort((a,b)=>(a.date+a.time).localeCompare(b.date+b.time));
+
+function dayLabel(ds){
+  if(!ds) return '날짜 없음';
+  const d = new Date(ds+'T00:00:00');
+  const w = ['일','월','화','수','목','금','토'][d.getDay()];
+  return `${d.getMonth()+1}월 ${d.getDate()}일 (${w})`;
+}
+function dayNo(ds){
+  if(!D.start || !ds) return null;
+  const n = Math.round((new Date(ds+'T00:00:00') - new Date(D.start+'T00:00:00'))/86400000) + 1;
+  return n > 0 ? n : null;
+}
+
+/* ══════════ 탭 ══════════ */
+$$('nav.tabs .t').forEach(t => t.onclick = () => {
+  $$('nav.tabs .t').forEach(x=>x.classList.remove('on'));
+  $$('section.page').forEach(x=>x.classList.remove('on'));
+  t.classList.add('on');
+  $('#p-'+t.dataset.p).classList.add('on');
+  window.scrollTo({top:0, behavior:'smooth'});
+  if(t.dataset.p === 'map')   setTimeout(drawMap, 60);
+  if(t.dataset.p === 'money') drawMoney();
+  if(t.dataset.p === 'share') drawExport();
+  if(t.dataset.p === 'set')   storeInfo();
+});
+
+/* ══════════ 목록 ══════════ */
+function renderAll(){
+  const tot = D.entries.reduce((s,e)=>s+krwOf(e), 0);
+  const jp  = D.entries.reduce((s,e)=>s+jpyOf(e), 0);
+  $('#hsKRW').textContent = nf(tot)+'원';
+  $('#hsJPY').textContent = '¥'+nf(jp);
+  $('#hsCnt').textContent = D.entries.length+'개';
+  $('#tripTitle').value   = D.title;
+  $('#tripPeriod').textContent =
+    (D.start && D.end) ? `${D.start} ~ ${D.end} · ${D.people}명` : '설정 탭에서 날짜를 넣어주세요';
+  renderLog();
+}
+
+function renderLog(){
+  const box = $('#logList');
+  if(!D.entries.length){
+    box.innerHTML = `<div class="empty"><span class="e">🧳</span>
+      아직 기록이 없어요.<br>아래 <b>＋ 새 기록 남기기</b>로<br>첫 장소를 남겨보세요!</div>`;
+    return;
+  }
+  const g = {};
+  sorted().forEach(e => (g[e.date] ||= []).push(e));
+  box.innerHTML = Object.keys(g).sort().map(date => {
+    const list = g[date], sum = list.reduce((s,e)=>s+krwOf(e), 0), n = dayNo(date);
+    return `<div class="daygroup">
+      <div class="dayhead">
+        ${n ? `<span class="badge">Day ${n}</span>` : ''}
+        <span class="d cute">${dayLabel(date)}</span>
+        <span class="sum">${nf(sum)}원</span>
+      </div>
+      ${list.map(entryHTML).join('')}
+    </div>`;
+  }).join('');
+}
+
+function entryHTML(e){
+  const C = cat(e.cat);
+  const pics = [
+    ...(e.photos||[]).map(p=>`<img src="${p}" onclick="lb(this.src)">`),
+    ...(e.receipt?[`<span class="rc"><img src="${e.receipt}" onclick="lb(this.src)"></span>`]:[])
+  ].join('');
+  const won = krwOf(e);
+  return `<div class="entry">
+    <div class="top">
+      <div class="ic" style="background:${C.bg}">${C.e}</div>
+      <div class="tt">
+        <div class="time">${e.time||'--:--'}</div>
+        <div class="place">${esc(e.place)||'이름 없는 곳'}</div>
+        ${e.tag ? `<div class="tagline">“${esc(e.tag)}”</div>` : ''}
+      </div>
+      ${won ? `<div class="amt"><b>${nf(won)}원</b>${
+        e.cur==='JPY' ? `<small>¥${nf(e.amt)}</small>` : `<small>원화 결제</small>`}</div>` : ''}
+    </div>
+    ${e.note ? `<div class="note">${esc(e.note)}</div>` : ''}
+    ${e.tips ? `<div class="tips">${esc(e.tips)}</div>` : ''}
+    <div class="meta">
+      <span class="tag" style="background:${C.bg};color:${C.c}">${esc(e.cat)}</span>
+      ${e.amt ? `<span class="tag a">${esc(e.pay)}</span>` : ''}
+      ${(e.amt && e.cur==='JPY') ? `<span class="tag b">💱 ${rateOf(e)}원</span>` : ''}
+      ${e.receipt ? `<span class="tag">🧾 영수증</span>` : (e.amt ? `<span class="tag w">영수증 없음</span>` : '')}
+      ${e.lat ? `<a class="tag b" target="_blank" rel="noopener"
+        href="https://www.google.com/maps/search/?api=1&query=${e.lat},${e.lng}">📍 구글지도</a>` : ''}
+    </div>
+    ${pics ? `<div class="thumbs">${pics}</div>` : ''}
+    <div class="acts">
+      <button class="btn sec sm" onclick="openForm('${e.id}')">수정</button>
+      <button class="btn danger sm" onclick="delEntry('${e.id}')">삭제</button>
+    </div>
+  </div>`;
+}
+function lb(src){ $('#lbImg').src = src; $('#lightbox').classList.add('on'); }
+
+/* ══════════ 입력 폼 ══════════ */
+function buildChips(){
+  $('#fCat').innerHTML = CATS.map(c=>`<div class="chip" data-v="${c.k}">${c.e} ${c.k}</div>`).join('');
+  $('#fPay').innerHTML = PAYS.map(p=>`<div class="chip blue" data-v="${p}">${p}</div>`).join('');
+  $$('#fCat .chip').forEach(c=>c.onclick=()=>{ form.cat=c.dataset.v; markChips(); });
+  $$('#fPay .chip').forEach(c=>c.onclick=()=>{ form.pay=c.dataset.v; markChips(); });
+  $$('#fCur .chip').forEach(c=>c.onclick=()=>{ form.cur=c.dataset.c; markChips(); conv(); });
+}
+function markChips(){
+  $$('#fCat .chip').forEach(c=>{
+    const on = c.dataset.v===form.cat, C = cat(c.dataset.v);
+    c.classList.toggle('on', on);
+    c.style.background = on ? C.c : '';
+    c.style.boxShadow  = on ? `0 3px 9px ${C.c}55` : '';
+  });
+  $$('#fPay .chip').forEach(c=>c.classList.toggle('on', c.dataset.v===form.pay));
+  $$('#fCur .chip').forEach(c=>c.classList.toggle('on', c.dataset.c===form.cur));
+  $('#fRateWrap').style.display = form.cur==='JPY' ? '' : 'none';
+}
+function conv(){
+  const v = Number($('#fAmt').value||0);
+  const r = Number($('#fRate').value) || baseRate();
+  $('#fConv').innerHTML = form.cur==='JPY'
+    ? `＝ 약 <b style="color:var(--magenta)">${nf(v*r/100)}원</b> <span style="opacity:.7">(100엔 ${r}원 기준)</span>`
+    : `＝ <b style="color:var(--magenta)">${nf(v)}원</b> <span style="opacity:.7">(원화로 입력됨)</span>`;
+}
+$('#fAmt').addEventListener('input', conv);
+$('#fRate').addEventListener('input', conv);
+
+function openForm(id){
+  editId = id || null;
+  const now = new Date();
+  if(id){
+    const e = D.entries.find(x=>x.id===id);
+    $('#fTitle').textContent = '기록 수정';
+    $('#fPlace').value = e.place; $('#fAmt').value = e.amt||'';
+    $('#fRate').value  = rateOf(e);
+    $('#fTag').value   = e.tag||'';
+    $('#fTips').value  = e.tips||'';
+    $('#fNote').value  = e.note||''; $('#fDate').value = e.date; $('#fTime').value = e.time;
+    form = {lat:e.lat, lng:e.lng, addr:e.addr||'', cur:e.cur, cat:e.cat, pay:e.pay,
+            photos:[...(e.photos||[])], receipt:e.receipt||null};
+  }else{
+    $('#fTitle').textContent = '새 기록';
+    $('#fPlace').value=''; $('#fAmt').value=''; $('#fNote').value='';
+    $('#fTag').value=''; $('#fTips').value='';
+    $('#fRate').value = todayRate ? todayRate.v : baseRate();
+    $('#fDate').value = todayInTrip() || now.toISOString().slice(0,10);
+    $('#fTime').value = String(now.getHours()).padStart(2,'0')+':'+String(now.getMinutes()).padStart(2,'0');
+    form = {lat:null, lng:null, addr:'', cur:'JPY', cat:'식사', pay:'현금', photos:[], receipt:null};
+  }
+  $('#geoRes').innerHTML=''; $('#revRes').innerHTML='';
+  markChips(); conv(); coordInfo(); drawThumbs();
+  $('#btnFetchRev').style.display = D.gkey ? '' : 'none';
+  $('#sheet').classList.add('on');
+}
+function todayInTrip(){
+  const t = new Date().toISOString().slice(0,10);
+  if(D.start && D.end) return (t>=D.start && t<=D.end) ? t : D.start;
+  return null;
+}
+function closeForm(){ $('#sheet').classList.remove('on'); }
+function coordInfo(){
+  $('#fCoordInfo').innerHTML = form.lat
+    ? `<span class="ok">📍 위치 저장됨</span> ${form.addr ? esc(form.addr) : `${form.lat.toFixed(4)}, ${form.lng.toFixed(4)}`}`
+    : '위치 없음 (없어도 저장돼요)';
+}
+
+function saveEntry(){
+  const place = $('#fPlace').value.trim();
+  const amt   = Number($('#fAmt').value||0);
+  if(!place && !amt && !$('#fNote').value.trim() && !$('#fTag').value.trim()){
+    alert('장소나 금액, 한 줄 중 하나는 있어야 저장할 수 있어요.'); return;
+  }
+  const e = {
+    id: editId || ('e'+Date.now()+Math.random().toString(36).slice(2,6)),
+    date: $('#fDate').value, time: $('#fTime').value,
+    place, cat: form.cat, pay: form.pay, cur: form.cur, amt,
+    rate: Number($('#fRate').value) || baseRate(),
+    tag:  $('#fTag').value.trim(),
+    tips: $('#fTips').value.trim(),
+    note: $('#fNote').value.trim(),
+    lat: form.lat, lng: form.lng, addr: form.addr,
+    photos: form.photos, receipt: form.receipt
+  };
+  if(editId) D.entries[D.entries.findIndex(x=>x.id===editId)] = e;
+  else D.entries.push(e);
+  save(); renderAll(); closeForm();
+  toast(editId ? '수정했어요 ✨' : '기록 저장했어요! 🎉');
+}
+function delEntry(id){
+  if(!confirm('이 기록을 지울까요? 되돌릴 수 없어요.')) return;
+  D.entries = D.entries.filter(x=>x.id!==id);
+  save(); renderAll(); toast('지웠어요');
+}
+
+/* ══════════ 사진 ══════════ */
+function shrink(file, max, q){
+  return new Promise(res=>{
+    const fr = new FileReader();
+    fr.onload = () => {
+      const img = new Image();
+      img.onload = () => {
+        let {width:w, height:h} = img;
+        const r = Math.min(1, max/Math.max(w,h));
+        w = Math.round(w*r); h = Math.round(h*r);
+        const cv = document.createElement('canvas');
+        cv.width=w; cv.height=h;
+        cv.getContext('2d').drawImage(img,0,0,w,h);
+        res(cv.toDataURL('image/jpeg', q));
+      };
+      img.src = fr.result;
+    };
+    fr.readAsDataURL(file);
+  });
+}
+$('#fPhoto').addEventListener('change', async ev => {
+  for(const f of ev.target.files) form.photos.push(await shrink(f, 900, .72));
+  drawThumbs(); ev.target.value='';
+});
+$('#fRcpt').addEventListener('change', async ev => {
+  if(ev.target.files[0]) form.receipt = await shrink(ev.target.files[0], 1100, .78);
+  drawThumbs(); ev.target.value='';
+});
+function drawThumbs(){
+  $('#fThumbs').innerHTML =
+    form.photos.map((p,i)=>`<img src="${p}" onclick="rmPhoto(${i})" title="누르면 삭제">`).join('') +
+    (form.receipt ? `<span class="rc"><img src="${form.receipt}" onclick="rmRcpt()" title="누르면 삭제"></span>` : '');
+}
+function rmPhoto(i){ if(confirm('이 사진 뺄까요?')){ form.photos.splice(i,1); drawThumbs(); } }
+function rmRcpt(){ if(confirm('영수증 사진 뺄까요?')){ form.receipt=null; drawThumbs(); } }
+
+/* ══════════ 위치 ══════════ */
+async function geoSearch(){
+  const q = $('#fPlace').value.trim();
+  if(!q){ toast('먼저 장소 이름을 적어주세요'); return; }
+  $('#geoRes').innerHTML = '<div class="geo-res"><div>찾는 중이에요…</div></div>';
+  try{
+    const r = await fetch('https://nominatim.openstreetmap.org/search?format=json&limit=5&accept-language=ko&q='
+                          + encodeURIComponent(q));
+    const js = await r.json();
+    if(!js.length){
+      $('#geoRes').innerHTML = '<div class="geo-res"><div>못 찾았어요 🥲 일본어 이름으로 다시 해보시거나, 지도에서 직접 찍어주세요.</div></div>';
+      return;
+    }
+    window._geo = js;
+    $('#geoRes').innerHTML = '<div class="geo-res">' + js.map((p,i)=>
+      `<div onclick="pickGeo(${p.lat},${p.lon},${i})">📍 ${esc(p.display_name)}</div>`).join('') + '</div>';
+  }catch(e){
+    $('#geoRes').innerHTML = '<div class="geo-res"><div>인터넷 연결을 확인해 주세요. 나중에 지도에서 찍어도 괜찮아요.</div></div>';
+  }
+}
+function pickGeo(lat,lng,i){
+  form.lat=+lat; form.lng=+lng;
+  form.addr = (window._geo?.[i]?.display_name || '').split(',').slice(0,3).join(',');
+  $('#geoRes').innerHTML=''; coordInfo(); toast('위치를 담았어요 📍');
+}
+/* ══════════ 구글 리뷰 ══════════ */
+/* ① 키 없이 — 구글맵의 그 장소를 새 창으로 열어 리뷰를 직접 보고 옮겨적기 */
+function openReviews(){
+  const q = $('#fPlace').value.trim();
+  if(!q && !form.lat){ toast('먼저 장소 이름을 적어주세요'); return; }
+  const query = q || `${form.lat},${form.lng}`;
+  window.open(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(query)}`,
+              '_blank', 'noopener');
+  toast('리뷰에서 쓸 만한 팁을 복사해 오세요 💡');
+}
+
+/* ② 구글 API 키를 넣어둔 경우 — 별점과 리뷰를 자동으로 가져오기 */
+async function fetchReviews(){
+  const key = (D.gkey||'').trim();
+  if(!key){ toast('설정 탭에서 구글 API 키를 먼저 넣어주세요'); return; }
+  const q = $('#fPlace').value.trim();
+  if(!q){ toast('먼저 장소 이름을 적어주세요'); return; }
+
+  $('#revRes').innerHTML = '<div class="revbox"><div class="r">구글에서 리뷰를 가져오는 중이에요…</div></div>';
+  try{
+    /* 장소 찾기 */
+    const s = await fetch('https://places.googleapis.com/v1/places:searchText', {
+      method:'POST',
+      headers:{'Content-Type':'application/json', 'X-Goog-Api-Key':key,
+               'X-Goog-FieldMask':'places.id,places.displayName,places.location'},
+      body: JSON.stringify({textQuery:q, languageCode:'ko'})
+    });
+    const sj = await s.json();
+    if(sj.error) throw new Error(sj.error.message||'검색 실패');
+    if(!sj.places?.length){
+      $('#revRes').innerHTML = '<div class="revbox"><div class="r">구글에서 이 장소를 못 찾았어요 🥲</div></div>';
+      return;
+    }
+    const p = sj.places[0];
+
+    /* 리뷰 가져오기 */
+    const d = await fetch(`https://places.googleapis.com/v1/places/${p.id}?languageCode=ko`, {
+      headers:{'X-Goog-Api-Key':key,
+               'X-Goog-FieldMask':'displayName,rating,userRatingCount,reviews'}
+    });
+    const dj = await d.json();
+    if(dj.error) throw new Error(dj.error.message||'리뷰 조회 실패');
+
+    /* 위치도 같이 채워주기 */
+    if(p.location && !form.lat){
+      form.lat = p.location.latitude; form.lng = p.location.longitude;
+      form.addr = dj.displayName?.text || ''; coordInfo();
+    }
+
+    const revs = (dj.reviews||[]).slice(0,5);
+    window._revs = revs;
+    const star = dj.rating ? `⭐ ${dj.rating} · 리뷰 ${(dj.userRatingCount||0).toLocaleString('ko-KR')}개` : '';
+    $('#revRes').innerHTML = `<div class="revbox">
+      <div class="hd">${esc(dj.displayName?.text||q)} ${star} — 담고 싶은 코멘트를 눌러주세요</div>
+      ${revs.length ? revs.map((r,i)=>{
+        const t = (r.text?.text || r.originalText?.text || '').replace(/\s+/g,' ').slice(0,160);
+        return `<div class="r" onclick="addTip(${i})">
+          <span class="s">${'★'.repeat(Math.round(r.rating||0))}</span> ${esc(t)}${t.length>=160?'…':''}</div>`;
+      }).join('') : '<div class="r">가져올 수 있는 리뷰가 없어요.</div>'}
+    </div>`;
+  }catch(err){
+    $('#revRes').innerHTML =
+      `<div class="revbox"><div class="r">리뷰를 못 가져왔어요 🥲<br>
+       <span style="color:#A69CA2;font-size:12px">${esc(err.message)}</span><br>
+       위의 <b>구글 리뷰 보러가기</b>로 직접 확인하셔도 좋아요.</div></div>`;
+  }
+}
+function addTip(i){
+  const r = window._revs?.[i]; if(!r) return;
+  const t = (r.text?.text || r.originalText?.text || '').replace(/\s+/g,' ').slice(0,160);
+  const cur = $('#fTips').value.trim();
+  $('#fTips').value = (cur ? cur+'\n' : '') + `· ${t}`;
+  toast('팁에 담았어요 💡');
+}
+
+function useGPS(){
+  if(!navigator.geolocation){ toast('이 브라우저는 위치를 못 가져와요'); return; }
+  $('#fCoordInfo').textContent = '내 위치 확인 중이에요…';
+  navigator.geolocation.getCurrentPosition(
+    p => { form.lat=p.coords.latitude; form.lng=p.coords.longitude; form.addr=''; coordInfo(); },
+    () => { $('#fCoordInfo').innerHTML =
+      '위치를 못 받았어요. 브라우저 위치 권한을 켜거나 <b>지도에서 찍기</b>를 써주세요.'; },
+    {enableHighAccuracy:true, timeout:9000}
+  );
+}
+function pickOnMap(){
+  $('#pickSheet').classList.add('on');
+  setTimeout(()=>{
+    const c = form.lat ? [form.lat, form.lng] : [34.6937, 135.5023];
+    if(!pickMap){
+      pickMap = L.map('pickMap').setView(c, 13);
+      L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+        {maxZoom:19, attribution:'© OpenStreetMap'}).addTo(pickMap);
+      pickMap.on('click', ev=>{
+        if(pickMarker) pickMap.removeLayer(pickMarker);
+        pickMarker = L.marker(ev.latlng).addTo(pickMap);
+      });
+    }else pickMap.setView(c, 13);
+    pickMap.invalidateSize();
+    setTimeout(()=>pickMap.invalidateSize(), 250);
+    if(form.lat){
+      if(pickMarker) pickMap.removeLayer(pickMarker);
+      pickMarker = L.marker(c).addTo(pickMap);
+    }
+  }, 80);
+}
+function confirmPick(){
+  if(!pickMarker){ toast('지도를 눌러 핀을 먼저 놓아주세요'); return; }
+  const ll = pickMarker.getLatLng();
+  form.lat=ll.lat; form.lng=ll.lng; form.addr='';
+  $('#pickSheet').classList.remove('on'); coordInfo();
+}
+
+/* ══════════ 지도 ══════════ */
+function drawMap(){
+  if(!map){
+    map = L.map('map').setView([34.6937,135.5023], 12);
+    L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+      {maxZoom:19, attribution:'© OpenStreetMap'}).addTo(map);
+    layerGroup = L.layerGroup().addTo(map);
+  }
+  map.invalidateSize();
+
+  const days = [...new Set(sorted().map(e=>e.date))].filter(Boolean);
+  const cur  = $('#mapDay').value;
+  $('#mapDay').innerHTML = '<option value="">전체 일정</option>' +
+    days.map(d=>`<option value="${d}">${dayNo(d)?'Day '+dayNo(d)+' · ':''}${dayLabel(d)}</option>`).join('');
+  if(cur) $('#mapDay').value = cur;
+
+  layerGroup.clearLayers();
+  const pts = sorted().filter(e=>e.lat && (!cur || e.date===cur));
+  pts.forEach((e,i)=>{
+    const icon = L.divIcon({html:`<div class="pin"><span>${i+1}</span></div>`, className:'', iconSize:[28,28]});
+    L.marker([e.lat,e.lng],{icon}).addTo(layerGroup).bindPopup(
+      `<b>${esc(e.place)||'기록'}</b><br>
+       ${e.tag?`<span style="color:#C4477F;font-weight:700">“${esc(e.tag)}”</span><br>`:''}
+       ${e.date} ${e.time} · ${cat(e.cat).e} ${esc(e.cat)}<br>
+       ${e.amt?`<b style="color:#EC008C">${nf(krwOf(e))}원</b>${e.cur==='JPY'?` (¥${nf(e.amt)})`:''}<br>`:''}
+       ${e.note?esc(e.note)+'<br>':''}
+       <a target="_blank" rel="noopener" href="https://www.google.com/maps/search/?api=1&query=${e.lat},${e.lng}">구글지도에서 열기 →</a>`
+    );
+  });
+  if(pts.length>1)
+    L.polyline(pts.map(e=>[e.lat,e.lng]),
+      {color:'#EC008C', weight:3, opacity:.6, dashArray:'7,7'}).addTo(layerGroup);
+
+  fitMap();
+  setTimeout(()=>{ map.invalidateSize(); fitMap(); }, 250);
+}
+$('#mapDay').addEventListener('change', drawMap);
+function fitMap(){
+  if(!map) return;
+  map.invalidateSize();
+  const cur = $('#mapDay').value;
+  const pts = sorted().filter(e=>e.lat && (!cur || e.date===cur)).map(e=>[e.lat,e.lng]);
+  if(pts.length) map.fitBounds(pts, {padding:[40,40], maxZoom:15});
+}
+function openGoogleRoute(){
+  const cur = $('#mapDay').value;
+  const pts = sorted().filter(e=>e.lat && (!cur || e.date===cur));
+  if(!pts.length){ toast('위치가 저장된 기록이 아직 없어요'); return; }
+  if(pts.length===1){
+    window.open(`https://www.google.com/maps/search/?api=1&query=${pts[0].lat},${pts[0].lng}`,'_blank'); return;
+  }
+  const o = pts[0], d = pts[pts.length-1];
+  const wp = pts.slice(1,-1).slice(0,8).map(e=>`${e.lat},${e.lng}`).join('|');
+  window.open(`https://www.google.com/maps/dir/?api=1&origin=${o.lat},${o.lng}&destination=${d.lat},${d.lng}`
+    + (wp?`&waypoints=${encodeURIComponent(wp)}`:'') + '&travelmode=walking', '_blank');
+}
+function buildKML(){
+  const pts = sorted().filter(e=>e.lat);
+  const marks = pts.map(e=>`  <Placemark>
+    <name>${esc(e.place)||'기록'}</name>
+    <description><![CDATA[${e.tag?`“${e.tag}”\n`:''}${e.date} ${e.time} · ${e.cat}${
+      e.amt?` · ${nf(krwOf(e))}원`:''}${e.note?`\n${e.note}`:''}]]></description>
+    <Point><coordinates>${e.lng},${e.lat},0</coordinates></Point>
+  </Placemark>`).join('\n');
+  const line = pts.length>1 ? `  <Placemark><name>동선</name><LineString><tessellate>1</tessellate>
+    <coordinates>${pts.map(e=>`${e.lng},${e.lat},0`).join(' ')}</coordinates></LineString></Placemark>` : '';
+  return `<?xml version="1.0" encoding="UTF-8"?>
+<kml xmlns="http://www.opengis.net/kml/2.2"><Document>
+  <name>${esc(D.title)||'일본여행'}</name>
+${marks}
+${line}
+</Document></kml>`;
+}
+
+/* ══════════ 정산 ══════════ */
+function bars(obj, total, colorOf){
+  const ks = Object.keys(obj).sort((a,b)=>obj[b]-obj[a]);
+  if(!ks.length) return '<p class="muted" style="margin:0">아직 지출 기록이 없어요.</p>';
+  return ks.map(k=>{
+    const v = obj[k], p = total ? v/total*100 : 0;
+    return `<div class="bar">
+      <div class="l"><span>${colorOf.icon?colorOf.icon(k):''} ${esc(k)}</span>
+        <span class="r">${nf(v)}원 · ${p.toFixed(0)}%</span></div>
+      <div class="track"><div class="fill" style="width:${p}%;background:${colorOf.c(k)}"></div></div>
+    </div>`;
+  }).join('');
+}
+function drawMoney(){
+  const es = D.entries.filter(e=>Number(e.amt)>0);
+  const tot = es.reduce((s,e)=>s+krwOf(e),0);
+  const jp  = es.reduce((s,e)=>s+jpyOf(e),0);
+  const days = new Set(es.map(e=>e.date).filter(Boolean)).size || 1;
+  const ppl = Math.max(1, Number(D.people)||1);
+
+  $('#mTotalKRW').textContent = nf(tot)+'원';
+  $('#mTotalJPY').textContent = es.length ? `엔화로 쓴 돈 ¥${nf(jp)} 포함` : '아직 지출 기록이 없어요';
+  $('#mPeopleN').textContent  = ppl;
+  $('#mPer').textContent      = nf(tot/ppl)+'원';
+  $('#mDaily').textContent    = nf(tot/days)+'원';
+  $('#mAvg').textContent      = nf(es.length ? tot/es.length : 0)+'원';
+
+  /* 적용 환율 */
+  const jpEs = es.filter(e=>e.cur==='JPY');
+  if(!jpEs.length){
+    $('#mRate').innerHTML = '<p class="muted" style="margin:0">엔화로 쓴 기록이 아직 없어요.</p>';
+  }else{
+    const rs = jpEs.map(rateOf);
+    const min = Math.min(...rs), max = Math.max(...rs);
+    const avg = jp ? jpEs.reduce((s,e)=>s+krwOf(e),0)/jp*100 : 0;   // 금액 가중 평균
+    $('#mRate').innerHTML = `<div class="ratebox">
+      💱 평균 적용 환율 <b>100엔 = ${avg.toFixed(1)}원</b>
+      ${min!==max ? `<br><span style="font-weight:600">기록별로 ${min}원 ~ ${max}원 사이로 각각 적용됐어요</span>`
+                  : `<br><span style="font-weight:600">모든 기록에 같은 환율이 적용됐어요</span>`}
+    </div>
+    <p class="muted" style="margin:10px 0 0">엔화 ¥${nf(jp)} → 약 ${nf(jpEs.reduce((s,e)=>s+krwOf(e),0))}원</p>`;
+  }
+
+  const by = f => es.reduce((o,e)=>{ const k=f(e)||'기타'; o[k]=(o[k]||0)+krwOf(e); return o; },{});
+  $('#mCat').innerHTML = bars(by(e=>e.cat), tot, {c:k=>cat(k).c, icon:k=>cat(k).e});
+  $('#mPay').innerHTML = bars(by(e=>e.pay), tot, {c:()=>'#B7A7B0'});
+
+  const dObj = by(e=>e.date), dKs = Object.keys(dObj).sort();
+  const dMax = Math.max(...Object.values(dObj), 1);
+  $('#mDate').innerHTML = dKs.length ? dKs.map(d=>`<div class="bar">
+      <div class="l"><span>${dayNo(d)?'Day '+dayNo(d)+' · ':''}${dayLabel(d)}</span>
+      <span class="r">${nf(dObj[d])}원</span></div>
+      <div class="track"><div class="fill" style="width:${dObj[d]/dMax*100}%;background:var(--blue)"></div></div>
+    </div>`).join('') : '<p class="muted" style="margin:0">아직 지출 기록이 없어요.</p>';
+
+  const no = es.filter(e=>!e.receipt);
+  $('#mReceipt').innerHTML = !es.length
+    ? '<p class="muted" style="margin:0">지출 기록이 아직 없어요.</p>'
+    : (!no.length
+      ? `<p class="ok" style="margin:0">영수증 ${es.length}건 전부 있어요! 정산 준비 완벽해요 ✨</p>`
+      : `<p class="muted" style="margin:0 0 9px">영수증 없는 지출 <b>${no.length}건</b> · 총 ${nf(no.reduce((s,e)=>s+krwOf(e),0))}원</p>
+         <table class="tb">${no.map(e=>`<tr><td>${e.date} ${esc(e.place)||'-'}</td>
+           <td class="n">${nf(krwOf(e))}원</td></tr>`).join('')}</table>`);
+}
+
+/* ══════════ 내보내기 ══════════ */
+let expType = 'blog';
+$$('#expType .chip').forEach(c=>c.onclick=()=>{
+  $$('#expType .chip').forEach(x=>x.classList.remove('on'));
+  c.classList.add('on'); expType = c.dataset.x; drawExport();
+});
+function mdBlog(){
+  const tot = D.entries.reduce((s,e)=>s+krwOf(e),0);
+  const ppl = Math.max(1,Number(D.people)||1);
+  let out = `# ${D.title||'일본 여행 기록'}\n\n`;
+  if(D.start) out += `**${D.start} ~ ${D.end}** · ${ppl}명 · 총 지출 **${nf(tot)}원**\n\n---\n\n`;
+  const g = {};
+  sorted().forEach(e=>(g[e.date] ||= []).push(e));
+  Object.keys(g).sort().forEach(date=>{
+    const list = g[date], sum = list.reduce((s,e)=>s+krwOf(e),0);
+    out += `## ${dayNo(date)?`Day ${dayNo(date)} — `:''}${dayLabel(date)}\n`;
+    out += `> 이날 쓴 돈: **${nf(sum)}원**\n\n`;
+    list.forEach(e=>{
+      out += `### ${e.time||''} ${cat(e.cat).e} ${e.place||'이름 없는 곳'}\n`;
+      if(e.tag) out += `> **“${e.tag}”**\n\n`;
+      if(e.amt) out += `- 💴 ${e.cur==='JPY'
+        ? `¥${nf(e.amt)} → 약 ${nf(krwOf(e))}원 (100엔 ${rateOf(e)}원)`
+        : `${nf(e.amt)}원`} · ${e.pay}\n`;
+      if(e.lat) out += `- 📍 [구글지도에서 보기](https://www.google.com/maps/search/?api=1&query=${e.lat},${e.lng})\n`;
+      if(e.note) out += `\n${e.note}\n`;
+      if(e.tips){
+        out += `\n**💡 참고**\n`;
+        e.tips.split('\n').filter(t=>t.trim())
+          .forEach(t => out += `- ${t.replace(/^[·\-\s]+/,'')}\n`);
+      }
+      out += `\n`;
+    });
+    out += `\n`;
+  });
+  out += `---\n\n## 💰 이번 여행 정산\n\n| 항목 | 금액 |\n|---|---:|\n`;
+  const by = {};
+  D.entries.filter(e=>e.amt>0).forEach(e=>{ by[e.cat]=(by[e.cat]||0)+krwOf(e); });
+  Object.keys(by).sort((a,b)=>by[b]-by[a]).forEach(k=>out += `| ${cat(k).e} ${k} | ${nf(by[k])}원 |\n`);
+  out += `| **합계** | **${nf(tot)}원** |\n| 1인당 (${ppl}명) | ${nf(tot/ppl)}원 |\n`;
+  return out;
+}
+function insta(){
+  const tot = D.entries.reduce((s,e)=>s+krwOf(e),0);
+  const uniq = [...new Set(sorted().filter(e=>e.place).map(e=>e.place))];
+  let out = `${D.title||'일본 여행'} ✈️\n`;
+  if(D.start) out += `${D.start.slice(5).replace('-','.')} ~ ${D.end.slice(5).replace('-','.')}\n`;
+  out += `\n`;
+  const g = {};
+  sorted().forEach(e=>(g[e.date] ||= []).push(e));
+  Object.keys(g).sort().forEach(d=>{
+    out += `📍 Day ${dayNo(d)||''} ${g[d].filter(e=>e.place).map(e=>e.place).join(' → ')}\n`;
+  });
+  const tags = sorted().filter(e=>e.tag);
+  if(tags.length){
+    out += `\n`;
+    tags.slice(0,5).forEach(e=>out += `✨ ${e.place ? e.place+' — ' : ''}${e.tag}\n`);
+  }
+  const notes = sorted().filter(e=>e.note).slice(0,2);
+  if(notes.length){ out += `\n`; notes.forEach(e=>out += `💭 ${e.note}\n`); }
+  out += `\n💸 총 ${nf(tot)}원 썼어요\n\n`;
+  out += `#일본여행 #여행기록 #${(D.title||'일본여행').replace(/\s/g,'')} `;
+  out += uniq.slice(0,6).map(p=>'#'+p.replace(/[\s·,]/g,'')).join(' ');
+  return out;
+}
+function clip(){
+  const tot = D.entries.reduce((s,e)=>s+krwOf(e),0);
+  const ppl = Math.max(1,Number(D.people)||1);
+  const line = '━'.repeat(22);
+  let out = `🎬 ${D.title||'일본 여행'} — 클립 자막\n${line}\n\n`;
+  const g = {};
+  sorted().forEach(e=>(g[e.date] ||= []).push(e));
+  let cut = 0;
+  Object.keys(g).sort().forEach(d=>{
+    out += `■ ${dayNo(d)?`Day ${dayNo(d)} · `:''}${dayLabel(d)}\n\n`;
+    g[d].forEach(e=>{
+      cut++;
+      out += `컷 ${cut} · ${e.place||'이름 없는 곳'}\n`;
+      out += `  「${e.tag || e.note?.split('\n')[0] || e.place || ''}」\n`;
+      if(e.note && e.tag) out += `  💬 ${e.note.replace(/\n/g,' ')}\n`;
+      if(e.tips)          out += `  💡 ${e.tips.replace(/\n/g,' / ')}\n`;
+      if(e.amt)           out += `  💴 ${nf(krwOf(e))}원${e.cur==='JPY'?` (¥${nf(e.amt)})`:''}\n`;
+      out += `\n`;
+    });
+  });
+  out += `${line}\n💸 총 ${nf(tot)}원 · ${ppl}명 · 1인당 ${nf(tot/ppl)}원\n`;
+  return out;
+}
+function plain(){
+  let out = `[${D.title||'일본 여행'}] ${D.start||''} ~ ${D.end||''}\n${'='.repeat(34)}\n\n`;
+  const g = {};
+  sorted().forEach(e=>(g[e.date] ||= []).push(e));
+  Object.keys(g).sort().forEach(d=>{
+    out += `■ ${dayNo(d)?`Day ${dayNo(d)} `:''}${dayLabel(d)}  (${nf(g[d].reduce((s,e)=>s+krwOf(e),0))}원)\n`;
+    g[d].forEach(e=>{
+      out += `  ${(e.time||'  :  ').padEnd(6)} ${cat(e.cat).e} ${e.place||'-'}`;
+      if(e.amt) out += `  ${nf(krwOf(e))}원`;
+      out += `\n`;
+      if(e.tag)  out += `          ✨ ${e.tag}\n`;
+      if(e.note) out += `          └ ${e.note}\n`;
+      if(e.tips) out += `          💡 ${e.tips.replace(/\n/g,' / ')}\n`;
+    });
+    out += `\n`;
+  });
+  out += `${'='.repeat(34)}\n총 지출 ${nf(D.entries.reduce((s,e)=>s+krwOf(e),0))}원\n`;
+  return out;
+}
+function csv(){
+  const head = ['날짜','시간','장소','이곳의한줄','종류','통화','금액','적용환율(100엔)','원화환산','결제수단','영수증','한줄기록','참고·팁','위도','경도','구글지도'];
+  const rows = sorted().map(e=>[
+    e.date, e.time, e.place, e.tag||'', e.cat, e.cur, e.amt||0,
+    e.cur==='JPY' ? rateOf(e) : '', Math.round(krwOf(e)), e.pay,
+    e.receipt?'있음':'없음', (e.note||'').replace(/\n/g,' '),
+    (e.tips||'').replace(/\n/g,' / '), e.lat||'', e.lng||'',
+    e.lat?`https://www.google.com/maps/search/?api=1&query=${e.lat},${e.lng}`:''
+  ]);
+  const q = v => `"${String(v??'').replace(/"/g,'""')}"`;
+  return [head, ...rows].map(r=>r.map(q).join(',')).join('\r\n');
+}
+function drawExport(){
+  $('#expOut').textContent =
+    expType==='blog'  ? mdBlog() :
+    expType==='insta' ? insta()  :
+    expType==='clip'  ? clip()   :
+    expType==='plain' ? plain()  : csv();
+}
+function copyOut(){
+  navigator.clipboard.writeText($('#expOut').textContent)
+    .then(()=>toast('복사했어요! 붙여넣기만 하면 돼요 ✨'))
+    .catch(()=>toast('아래 글을 직접 드래그해서 복사해 주세요'));
+}
+function saveOut(){
+  const name = (D.title||'일본여행').replace(/[\\/:*?"<>|]/g,'');
+  const ext  = expType==='csv' ? 'csv' : expType==='blog' ? 'md' : 'txt';
+  const body = expType==='csv' ? '﻿'+$('#expOut').textContent : $('#expOut').textContent;
+  dl(`${name}_${expType}.${ext}`, body, 'text/plain;charset=utf-8');
+}
+function dl(name, text, mime){
+  const b = new Blob([text], {type:(mime||'text/plain')+';charset=utf-8'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(b); a.download = name; a.click();
+  setTimeout(()=>URL.revokeObjectURL(a.href), 1500);
+  toast('저장했어요 💾');
+}
+
+/* ══════════ 백업 ══════════ */
+function backup(){
+  dl(`여행기록_백업_${new Date().toISOString().slice(0,10)}.json`,
+     JSON.stringify(D,null,2), 'application/json');
+}
+$('#impFile').addEventListener('change', ev=>{
+  const f = ev.target.files[0]; if(!f) return;
+  const fr = new FileReader();
+  fr.onload = () => {
+    try{
+      const j = JSON.parse(fr.result);
+      if(!Array.isArray(j.entries)) throw 0;
+      if(!confirm(`기록 ${j.entries.length}개를 불러올까요?\n지금 있는 기록은 지워지고 이걸로 바뀝니다.`)) return;
+      D = Object.assign({title:'',start:'',end:'',rate:920,people:1,gkey:'',entries:[]}, j);
+      save(); syncSettings(); renderAll(); toast('불러왔어요! 🎉');
+    }catch(e){ alert('백업 파일이 아닌 것 같아요. 다시 확인해 주세요.'); }
+  };
+  fr.readAsText(f); ev.target.value='';
+});
+function wipe(){
+  if(!confirm('정말 전부 지울까요? 되돌릴 수 없어요.\n먼저 [백업 저장]을 해두시는 걸 권해드려요.')) return;
+  if(!confirm('마지막 확인이에요. 진짜 지울까요?')) return;
+  D = {title:'',start:'',end:'',rate:920,people:1,gkey:D.gkey||'',entries:[]};
+  save(); syncSettings(); renderAll(); storeInfo(); toast('전부 비웠어요');
+}
+function storeInfo(){
+  const mb = (new Blob([JSON.stringify(D)]).size/1048576).toFixed(2);
+  const pics = D.entries.reduce((s,e)=>s+(e.photos?.length||0)+(e.receipt?1:0),0);
+  $('#storeInfo').innerHTML =
+    `기록 <b>${D.entries.length}개</b> · 사진 <b>${pics}장</b> · 약 <b>${mb}MB</b> 사용 중<br>
+     브라우저 저장 공간은 보통 5MB 정도예요. 넘칠 것 같으면 백업을 받아두세요.`;
+}
+
+/* ══════════ 설정 ══════════ */
+function syncSettings(){
+  $('#sTitle').value = D.title; $('#sStart').value = D.start;
+  $('#sEnd').value = D.end; $('#sRate').value = D.rate; $('#sPeople').value = D.people;
+  $('#sGkey').value = D.gkey || '';
+}
+['sTitle','sStart','sEnd','sRate','sPeople','sGkey'].forEach(id=>{
+  $('#'+id).addEventListener('input', ()=>{
+    D.title = $('#sTitle').value;
+    D.start = $('#sStart').value;
+    D.end   = $('#sEnd').value;
+    D.rate  = Number($('#sRate').value)||920;
+    D.people= Math.max(1, Number($('#sPeople').value)||1);
+    D.gkey  = $('#sGkey').value.trim();
+    save(); renderAll();
+  });
+});
+$('#tripTitle').addEventListener('input', ()=>{
+  D.title = $('#tripTitle').value; $('#sTitle').value = D.title; save();
+});
+$$('.sheet').forEach(s => s.addEventListener('click', ev => {
+  if(ev.target === s) s.classList.remove('on');
+}));
+
+/* ══════════ 시작 ══════════ */
+load(); buildChips(); syncSettings(); renderAll(); storeInfo(); fetchRate(false);
+</script>
+</body>
+</html>
