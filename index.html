@@ -282,6 +282,7 @@ pre.out{
 
 <!-- ═══ 기록 ═══ -->
 <section class="page on" id="p-log">
+  <div id="warnBox"></div>
   <div id="logList"></div>
 </section>
 
@@ -392,17 +393,19 @@ pre.out{
   </div>
 
   <div class="card">
-    <h3>🔍 구글 리뷰 자동 불러오기 <span style="font-size:11px;color:#B7A7B0;font-weight:600">선택</span></h3>
+    <h3>🔍 구글 API 키 <span style="font-size:11px;color:#B7A7B0;font-weight:600">선택</span></h3>
     <p class="muted" style="margin:0 0 11px">
-      비워두셔도 괜찮아요. 기록 화면의 <b>「구글 리뷰 보러가기」</b> 버튼은 키 없이도 잘 동작해요.<br>
-      키를 넣으면 <b>별점과 리뷰가 앱 안으로 바로</b> 들어와서, 마음에 드는 코멘트만 눌러 팁에 담을 수 있어요.
+      <b>비워두셔도 다 동작해요.</b> 키를 넣으면 두 가지가 훨씬 좋아져요 👇<br><br>
+      🧾 <b>영수증 읽기</b> — 흐릿한 감열지 글씨도 훨씬 정확하게, 몇 초 만에<br>
+      ⭐ <b>구글 리뷰</b> — 별점·리뷰가 앱 안으로 바로 들어와요
     </p>
-    <label class="f">Google Places API 키</label>
+    <label class="f">Google API 키</label>
     <input type="text" id="sGkey" placeholder="AIza... (없으면 비워두세요)">
     <p class="muted" style="margin:10px 0 0">
       키는 이 브라우저에만 저장돼요. 발급은
       <a href="https://console.cloud.google.com/" target="_blank" rel="noopener" style="color:var(--blue);font-weight:700">구글 클라우드 콘솔</a>
-      에서 <b>Places API (New)</b> 를 켜면 돼요. 필요하시면 같이 해드릴게요 🙂
+      에서 <b>Cloud Vision API</b>와 <b>Places API (New)</b> 를 켜면 돼요.
+      키 하나로 둘 다 쓸 수 있어요. 필요하시면 같이 해드릴게요 🙂
     </p>
   </div>
 
@@ -495,7 +498,8 @@ pre.out{
       <div id="revRes"></div>
       <textarea id="fTips" placeholder="예: 웨이팅 앱으로 미리 등록 가능 / 1층은 흡연석 / 현금만 받음" style="margin-top:8px"></textarea>
 
-      <label class="f">사진 · 영수증</label>
+      <label class="f">사진 · 영수증
+        <span style="font-weight:600;color:#B7A7B0">· 영수증을 찍으면 금액·시간·가게를 알아서 읽어요</span></label>
       <div class="row">
         <button class="btn sec sm" onclick="$('#fPhoto').click()">🖼 사진 추가</button>
         <button class="btn sec sm" onclick="$('#fRcpt').click()">🧾 영수증 찍기</button>
@@ -503,6 +507,9 @@ pre.out{
       <input type="file" id="fPhoto" accept="image/*" multiple hidden>
       <input type="file" id="fRcpt" accept="image/*" capture="environment" hidden>
       <div class="thumbs" id="fThumbs"></div>
+      <div id="ocrRes"></div>
+      <button class="btn sec sm full" id="btnScan" style="margin-top:8px;display:none"
+              onclick="scanReceipt()">🧾 영수증 다시 읽기</button>
     </div>
 
     <div class="card">
@@ -669,6 +676,55 @@ function renderAll(){
   renderLog();
 }
 
+/* ══════════ 저장이 되는 곳인지 확인 ══════════ */
+function canSave(){
+  try{
+    localStorage.setItem('__chk','1');
+    const ok = localStorage.getItem('__chk') === '1';
+    localStorage.removeItem('__chk');
+    return ok;
+  }catch(e){ return false; }
+}
+function inAppName(){
+  const u = navigator.userAgent;
+  if(/NAVER/i.test(u))            return '네이버앱';
+  if(/KAKAOTALK/i.test(u))        return '카카오톡';
+  if(/Instagram/i.test(u))        return '인스타그램';
+  if(/FBAN|FBAV|FB_IAB/i.test(u)) return '페이스북';
+  if(/Line\//i.test(u))           return '라인';
+  if(/DaumApps/i.test(u))         return '다음앱';
+  if(/; wv\)/i.test(u))           return '앱 안의 브라우저';
+  return '';
+}
+function warnCard(icon, title, body, showCopy){
+  return `<div class="card" style="border:1.5px solid #FFD9B0;background:#FFF8EE">
+    <h3 style="color:#B4671A">${icon} ${title}</h3>
+    <p class="muted" style="margin:0;color:#8A6A45">${body}</p>
+    ${showCopy ? `<button class="btn sec sm full" style="margin-top:11px" onclick="copyAddr()">
+        🔗 주소 복사하기</button>` : ''}
+  </div>`;
+}
+function copyAddr(){
+  navigator.clipboard.writeText(location.href.split('?')[0])
+    .then(()=>toast('주소를 복사했어요! 크롬에 붙여넣어 주세요 🔗'))
+    .catch(()=>toast('주소창을 길게 눌러 복사해 주세요'));
+}
+function drawWarn(){
+  const el = $('#warnBox'); if(!el) return;
+  const app = inAppName();
+  let h = '';
+  if(!canSave()){
+    h = warnCard('⚠️','기록이 저장되지 않고 있어요',
+      '시크릿 모드이거나 저장이 막혀 있어요.<br>일반 창(크롬·사파리)에서 열면 기록이 남아요.', true);
+  }else if(app){
+    h = warnCard('⚠️',`지금 ${app} 안에서 열려 있어요`,
+      `이렇게 열면 <b>${app}을 닫을 때 기록이 사라질 수 있어요.</b><br><br>`
+      + `화면의 <b>⋮</b> 또는 <b>공유</b> 버튼 → <b>다른 브라우저로 열기</b>를 눌러 `
+      + `크롬·사파리에서 열어주세요. 그다음 <b>홈 화면에 추가</b>해두면 앱처럼 쓸 수 있어요.`, true);
+  }
+  el.innerHTML = h;
+}
+
 function renderLog(){
   const box = $('#logList');
   if(!D.entries.length){
@@ -779,7 +835,7 @@ function openForm(id){
     $('#fTime').value = String(now.getHours()).padStart(2,'0')+':'+String(now.getMinutes()).padStart(2,'0');
     form = {lat:null, lng:null, addr:'', cur:'JPY', cat:'식사', pay:'현금', photos:[], receipt:null};
   }
-  $('#geoRes').innerHTML=''; $('#revRes').innerHTML='';
+  $('#geoRes').innerHTML=''; $('#revRes').innerHTML=''; $('#ocrRes').innerHTML=''; _ocr=null;
   markChips(); conv(); coordInfo(); drawThumbs();
   $('#btnFetchRev').style.display = D.gkey ? '' : 'none';
   $('#sheet').classList.add('on');
@@ -855,9 +911,10 @@ $('#fRcpt').addEventListener('change', async ev => {
   const f = ev.target.files[0];
   if(f){
     const ex = await readExif(f);
-    form.receipt = await shrink(f, 1100, .78);
+    form.receipt = await shrink(f, 1400, .85);   // 글자를 읽어야 하니 조금 더 선명하게
     drawThumbs();
-    autoFill(ex);
+    autoFill(ex);                                 // 위치·시각 채우기
+    scanReceipt();                                // 영수증 글자 읽기
   }
   ev.target.value='';
 });
@@ -865,35 +922,271 @@ function drawThumbs(){
   $('#fThumbs').innerHTML =
     form.photos.map((p,i)=>`<img src="${p}" onclick="rmPhoto(${i})" title="누르면 삭제">`).join('') +
     (form.receipt ? `<span class="rc"><img src="${form.receipt}" onclick="rmRcpt()" title="누르면 삭제"></span>` : '');
+  $('#btnScan').style.display = form.receipt ? '' : 'none';
 }
 function rmPhoto(i){ if(confirm('이 사진 뺄까요?')){ form.photos.splice(i,1); drawThumbs(); } }
 function rmRcpt(){ if(confirm('영수증 사진 뺄까요?')){ form.receipt=null; drawThumbs(); } }
 
 /* ══════════ 위치 ══════════ */
+/* 여행 제목에서 지역 이름만 뽑아요 ("오사카 3박4일" → "오사카") */
+function tripRegion(){
+  return (D.title||'')
+    .replace(/\d+\s*박\s*\d+\s*일|\d+일차|자유여행|여행기|여행|일정|기록/g,'')
+    .replace(/\s+/g,' ').trim();
+}
+async function nomi(q, jpOnly){
+  try{
+    const r = await fetch('https://nominatim.openstreetmap.org/search?format=json&limit=6&accept-language=ko'
+                          + (jpOnly ? '&countrycodes=jp' : '') + '&q=' + encodeURIComponent(q));
+    return r.ok ? await r.json() : [];
+  }catch(e){ return []; }
+}
+async function photon(q){
+  try{
+    const r = await fetch('https://photon.komoot.io/api/?limit=6&q=' + encodeURIComponent(q));
+    if(!r.ok) return [];
+    const j = await r.json();
+    return (j.features||[]).map(f=>({
+      lat: f.geometry.coordinates[1], lon: f.geometry.coordinates[0],
+      display_name: [f.properties.name, f.properties.district, f.properties.city, f.properties.country]
+                    .filter(Boolean).join(', ')
+    }));
+  }catch(e){ return []; }
+}
 async function geoSearch(){
   const q = $('#fPlace').value.trim();
   if(!q){ toast('먼저 장소 이름을 적어주세요'); return; }
+  const region = tripRegion();
   $('#geoRes').innerHTML = '<div class="geo-res"><div>찾는 중이에요…</div></div>';
-  try{
-    const r = await fetch('https://nominatim.openstreetmap.org/search?format=json&limit=5&accept-language=ko&q='
-                          + encodeURIComponent(q));
-    const js = await r.json();
-    if(!js.length){
-      $('#geoRes').innerHTML = '<div class="geo-res"><div>못 찾았어요 🥲 일본어 이름으로 다시 해보시거나, 지도에서 직접 찍어주세요.</div></div>';
-      return;
-    }
-    window._geo = js;
-    $('#geoRes').innerHTML = '<div class="geo-res">' + js.map((p,i)=>
-      `<div onclick="pickGeo(${p.lat},${p.lon},${i})">📍 ${esc(p.display_name)}</div>`).join('') + '</div>';
-  }catch(e){
-    $('#geoRes').innerHTML = '<div class="geo-res"><div>인터넷 연결을 확인해 주세요. 나중에 지도에서 찍어도 괜찮아요.</div></div>';
+
+  /* ① 일본 안에서 → ② 지역 이름을 붙여서 → ③ 전 세계 → ④ 다른 검색으로 */
+  let js = await nomi(q, true);
+  if(!js.length && region) js = await nomi(`${region} ${q}`, true);
+  if(!js.length)           js = await nomi(q, false);
+  if(!js.length)           js = await photon(region ? `${region} ${q}` : q);
+  if(!js.length)           js = await photon(q);
+
+  /* 같은 곳이 여러 번 나오면 한 번만 */
+  const seen = new Set();
+  js = js.filter(p=>{
+    const k = `${(+p.lat).toFixed(4)},${(+p.lon).toFixed(4)}`;
+    if(seen.has(k)) return false; seen.add(k); return true;
+  }).slice(0,6);
+
+  if(!js.length){
+    $('#geoRes').innerHTML = `<div class="geo-res"><div>
+      못 찾았어요 🥲<br>
+      <span style="color:#A69CA2;font-size:12px">
+        지금 그 자리에 계시면 <b>🏪 주변가게</b> 가 제일 정확해요.<br>
+        아니면 일본어 이름(예: 一蘭)으로 해보시거나 <b>🗺 지도에서</b> 찍어주세요.
+      </span></div></div>`;
+    return;
   }
+  window._geo = js;
+  $('#geoRes').innerHTML = '<div class="geo-res">' + js.map((p,i)=>
+    `<div onclick="pickGeo(${p.lat},${p.lon},${i})">📍 ${esc(p.display_name)}</div>`).join('') + '</div>';
 }
 function pickGeo(lat,lng,i){
   form.lat=+lat; form.lng=+lng;
   form.addr = (window._geo?.[i]?.display_name || '').split(',').slice(0,3).join(',');
   $('#geoRes').innerHTML=''; coordInfo(); toast('위치를 담았어요 📍');
 }
+/* ══════════ 영수증 글자 읽기 (OCR) ══════════ */
+/* 전각 문자를 반각으로 (１２３ → 123) */
+const toHalf = s => String(s||'').replace(/[！-～]/g, c=>String.fromCharCode(c.charCodeAt(0)-0xFEE0))
+                                 .replace(/　/g,' ');
+const numOf = s => {
+  const n = Number(String(s).replace(/[,，\s]/g,''));
+  return Number.isFinite(n) ? n : null;
+};
+
+/* 일본 영수증 텍스트에서 금액·날짜·가게·결제수단을 뽑아내요 */
+/* 글자 읽기가 일본어 사이에 넣은 공백을 붙여줘요 ("お に ぎり" → "おにぎり") */
+const squash = s => toHalf(s)
+  .replace(/([ぁ-んァ-ヶ一-龥ー々])[ \t]+(?=[ぁ-んァ-ヶ一-龥ー々])/g, '$1')
+  .replace(/([ぁ-んァ-ヶ一-龥ー々])[ \t]+(?=[ぁ-んァ-ヶ一-龥ー々])/g, '$1');
+
+function parseReceipt(raw){
+  const norm  = squash(raw);
+  const lines = norm.split('\n').map(l=>l.trim()).filter(Boolean);
+  const out = { amount:null, date:'', time:'', place:'', pay:'', cat:'' };
+  const NUM = /(\d[\d,，]*)\s*円?/;
+
+  /* ── 금액: 合計 계열을 먼저, 小計·세금·거스름돈은 제외 ── */
+  const TOTAL  = /(合\s*計|お\s*会\s*計|お買[上い]げ?\s*計|総\s*額|ご?\s*請\s*求|計\s*額|TOTAL|運\s*賃|料\s*金|代\s*金|ご利用金額|金\s*額|FARE)/i;
+  const EXCEPT = /(小\s*計|中\s*計|消費税|内税|外税|税\s*額|お?預[りか]|現\s*金|お\s*釣|釣\s*銭|CHANGE|CASH|点数|個数|ポイント|残高)/i;
+  for(let i=0;i<lines.length;i++){
+    const l = lines[i];
+    if(!TOTAL.test(l) || EXCEPT.test(l)) continue;
+    let m = l.match(NUM);
+    if(!m && lines[i+1]) m = lines[i+1].match(/^[¥￥\￠\s]*(\d[\d,，]*)/);   // 다음 줄에 금액이 있는 경우
+    const v = m && numOf(m[1]);
+    if(v && v>0 && v<3000000){ out.amount = v; break; }
+  }
+  /* 合計을 못 찾으면 ¥ 붙은 숫자 중 마지막 것 (거스름돈 줄은 빼고) */
+  if(out.amount === null){
+    const cands = lines.filter(l=>!EXCEPT.test(l))
+      .map(l=>{ const m = l.match(/[¥￥\￠]\s*(\d[\d,，]*)/); return m && numOf(m[1]); })
+      .filter(v=>v && v>0 && v<3000000);
+    if(cands.length) out.amount = cands[cands.length-1];
+  }
+  /* 그래도 없으면 "○○円" 이 딱 하나만 있을 때 그걸로 */
+  if(out.amount === null){
+    const yen = lines.filter(l=>!EXCEPT.test(l))
+      .map(l=>{ const m = l.match(/(\d[\d,，]*)\s*円/); return m && numOf(m[1]); })
+      .filter(v=>v && v>0 && v<3000000);
+    if(yen.length === 1) out.amount = yen[0];
+  }
+
+  /* ── 날짜 (서기 · 令和 둘 다) ── */
+  const all = norm;
+  let m = all.match(/(20\d{2})\s*[年\/\-.]\s*(\d{1,2})\s*[月\/\-.]\s*(\d{1,2})/);
+  if(m){
+    out.date = `${m[1]}-${String(m[2]).padStart(2,'0')}-${String(m[3]).padStart(2,'0')}`;
+  }else{
+    const r = all.match(/(?:令和|R)\s*(\d{1,2})\s*[年\/\-.]\s*(\d{1,2})\s*[月\/\-.]\s*(\d{1,2})/);
+    if(r) out.date = `${2018+Number(r[1])}-${String(r[2]).padStart(2,'0')}-${String(r[3]).padStart(2,'0')}`;
+  }
+  const t = all.match(/(\d{1,2})\s*[:時]\s*(\d{2})/);
+  if(t){
+    const h = Number(t[1]);
+    if(h<24) out.time = `${String(h).padStart(2,'0')}:${t[2]}`;
+  }
+
+  /* ── 가게 이름: 위쪽 줄 중 숫자·주소가 아닌 첫 줄 ── */
+  for(const l of lines.slice(0,6)){
+    const c = l.replace(/[*＊=＝\-—─~〜\s]/g,'');
+    if(c.length < 2 || c.length > 28) continue;
+    if(/^\d/.test(c)) continue;
+    if(/(領収|レシート|RECEIPT|TEL|電話|〒|住所|店舗|No\.|登録番号|インボイス)/i.test(l)) continue;
+    if(/(都|道|府|県).*(市|区|町|村)/.test(l)) continue;      // 주소 줄
+    out.place = l.replace(/^[*＊\s]+|[*＊\s]+$/g,'');
+    break;
+  }
+
+  /* ── 결제수단 ── */
+  if(/(クレジット|カード|VISA|MASTER|JCB|AMEX|信販)/i.test(all)) out.pay = '신용카드';
+  else if(/(交通系|IC\b|Suica|ICOCA|PASMO|PiTaPa|nanaco|WAON|楽天Edy|電子マネー)/i.test(all)) out.pay = 'IC교통카드';
+  else if(/(現\s*金|CASH|お預[りか])/i.test(all)) out.pay = '현금';
+
+  /* ── 종류 짐작 ── */
+  if(/(セブン|ローソン|ファミリーマート|ファミマ|ミニストップ|デイリーヤマザキ|コンビニ)/i.test(all)) out.cat='편의점';
+  else if(/(カフェ|珈琲|コーヒー|CAFE|スターバックス|ドトール|タリーズ|COFFEE)/i.test(all)) out.cat='카페';
+  else if(/(ラーメン|食堂|レストラン|居酒屋|そば|うどん|寿司|焼肉|定食|飲食|お食事)/i.test(all)) out.cat='식사';
+  else if(/(ホテル|旅館|HOTEL|INN|宿泊)/i.test(all)) out.cat='숙박';
+  else if(/(鉄道|運賃|乗車|きっぷ|JR|地下鉄|バス|タクシー|空港)/i.test(all)) out.cat='교통';
+  else if(/(ドラッグ|薬局|百貨店|ストア|STORE|MART|免税|ドン・キホーテ)/i.test(all)) out.cat='쇼핑';
+
+  return out;
+}
+
+/* 구글 Vision (키가 있을 때 · 정확도 훨씬 좋음) */
+async function visionOCR(dataUrl, key){
+  const r = await fetch('https://vision.googleapis.com/v1/images:annotate?key=' + encodeURIComponent(key), {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({requests:[{
+      image:{content: dataUrl.split(',')[1]},
+      features:[{type:'TEXT_DETECTION'}],
+      imageContext:{languageHints:['ja','en']}
+    }]})
+  });
+  const j = await r.json();
+  if(j.error) throw new Error(j.error.message || 'Vision 오류');
+  const res = j.responses?.[0];
+  if(res?.error) throw new Error(res.error.message);
+  return res?.fullTextAnnotation?.text || '';
+}
+
+/* Tesseract (키 없이 · 처음 한 번 글자 데이터를 받아와요) */
+function loadTesseract(){
+  if(window.Tesseract) return Promise.resolve();
+  return new Promise((res,rej)=>{
+    const s = document.createElement('script');
+    s.src = 'https://cdnjs.cloudflare.com/ajax/libs/tesseract.js/5.1.1/tesseract.min.js';
+    s.onload = res;
+    s.onerror = () => rej(new Error('글자 읽기 도구를 못 불러왔어요'));
+    document.head.appendChild(s);
+  });
+}
+async function tessOCR(dataUrl, onProgress){
+  await loadTesseract();
+  const worker = await Tesseract.createWorker('jpn', 1, {
+    logger: m => {
+      if(m.status === 'downloading tesseract core' || m.status === 'loading language traineddata')
+        onProgress(`글자 데이터 받는 중… ${Math.round((m.progress||0)*100)}%`);
+      else if(m.status === 'recognizing text')
+        onProgress(`영수증 읽는 중… ${Math.round((m.progress||0)*100)}%`);
+    }
+  });
+  try{
+    const { data:{ text } } = await worker.recognize(dataUrl);
+    return text;
+  } finally { await worker.terminate(); }
+}
+
+let _ocr = null;   // 읽어낸 결과를 잠깐 담아둬요
+async function scanReceipt(){
+  if(!form.receipt){ toast('먼저 영수증 사진을 넣어주세요'); return; }
+  const box = $('#ocrRes');
+  const key = (D.gkey||'').trim();
+  const say = t => box.innerHTML = `<div class="revbox"><div class="r">${t}</div></div>`;
+
+  say(key ? '영수증을 읽는 중이에요…'
+          : '영수증을 읽는 중이에요…<br><span style="color:#A69CA2;font-size:12px">처음엔 글자 데이터를 받느라 30초쯤 걸려요 (와이파이 권장)</span>');
+  try{
+    let text = '';
+    if(key){
+      try{ text = await visionOCR(form.receipt, key); }
+      catch(e){ say(`구글로 읽기 실패 — 다른 방법으로 해볼게요<br><span style="color:#A69CA2;font-size:12px">${esc(e.message)}</span>`); }
+    }
+    if(!text.trim()) text = await tessOCR(form.receipt, say);
+    if(!text.trim()) throw new Error('글자를 못 찾았어요');
+
+    const g = parseReceipt(text);
+    _ocr = g;
+    const rows = [
+      g.place  ? ['가게', esc(g.place)] : null,
+      g.amount ? ['금액', `${nf(g.amount)}엔`] : null,
+      g.date   ? ['날짜', g.date + (g.time ? ` ${g.time}` : '')] : null,
+      g.pay    ? ['결제', g.pay] : null,
+      g.cat    ? ['종류', g.cat] : null
+    ].filter(Boolean);
+
+    if(!rows.length){
+      box.innerHTML = `<div class="revbox"><div class="r">
+        글자는 읽었는데 금액·날짜를 못 찾았어요 🥲<br>
+        <span style="color:#A69CA2;font-size:12px">사진이 흐리거나 접혀 있으면 잘 안 돼요. 평평하게 펴고 밝은 곳에서 다시 찍어보세요.</span>
+      </div></div>`;
+      return;
+    }
+    box.innerHTML = `<div class="revbox">
+      <div class="hd">🧾 영수증에서 이렇게 읽었어요</div>
+      ${rows.map(([k,v])=>`<div class="r" style="cursor:default">
+        <span style="color:#A69CA2">${k}</span>　<b>${v}</b></div>`).join('')}
+      <div class="r" style="padding:10px 12px;background:#FFF8EE">
+        <button class="btn sm full" onclick="applyOcr()">이대로 넣기</button>
+      </div>
+    </div>`;
+  }catch(e){
+    box.innerHTML = `<div class="revbox"><div class="r">
+      영수증을 못 읽었어요 🥲<br>
+      <span style="color:#A69CA2;font-size:12px">${esc(e.message)} — 금액만 직접 적어주셔도 괜찮아요.</span>
+    </div></div>`;
+  }
+}
+function applyOcr(){
+  const g = _ocr; if(!g) return;
+  if(g.amount){ $('#fAmt').value = g.amount; form.cur = 'JPY'; }
+  if(g.date && !editId) $('#fDate').value = g.date;
+  if(g.time && !editId) $('#fTime').value = g.time;
+  if(g.pay) form.pay = g.pay;
+  if(g.cat) form.cat = g.cat;
+  if(g.place && !$('#fPlace').value.trim()) $('#fPlace').value = g.place;
+  markChips(); conv();
+  $('#ocrRes').innerHTML = '<div class="revbox"><div class="r"><span class="ok">✅ 넣었어요.</span> 틀린 곳은 손으로 고쳐주세요.</div></div>';
+  toast('영수증 내용을 넣었어요 🧾');
+}
+
 /* ══════════ 구글 리뷰 ══════════ */
 /* ① 키 없이 — 구글맵의 그 장소를 새 창으로 열어 리뷰를 직접 보고 옮겨적기 */
 function openReviews(){
@@ -1608,9 +1901,30 @@ function wipe(){
 function storeInfo(){
   const mb = (new Blob([JSON.stringify(D)]).size/1048576).toFixed(2);
   const pics = D.entries.reduce((s,e)=>s+(e.photos?.length||0)+(e.receipt?1:0),0);
+  const u = navigator.userAgent;
+  const app = inAppName();
+  const browser = app || (/CriOS|Chrome/i.test(u) ? '크롬'
+                        : /Firefox/i.test(u) ? '파이어폭스'
+                        : /Edg/i.test(u) ? '엣지'
+                        : /Whale/i.test(u) ? '웨일'
+                        : /Safari/i.test(u) ? '사파리' : '이 브라우저');
+  const ok = canSave();
   $('#storeInfo').innerHTML =
-    `기록 <b>${D.entries.length}개</b> · 사진 <b>${pics}장</b> · 약 <b>${mb}MB</b> 사용 중<br>
+    `<div style="font-weight:800;color:${ok&&!app?'#17A05B':'#D9702B'};margin-bottom:7px">
+       ${ok ? (app ? `△ ${browser} 안에 임시로 저장 중` : `✅ ${browser}에 잘 저장되고 있어요`)
+            : '⚠️ 저장이 막혀 있어요'}
+     </div>
+     기록 <b>${D.entries.length}개</b> · 사진 <b>${pics}장</b> · 약 <b>${mb}MB</b> 사용 중<br><br>
+     <b>기록은 브라우저마다 따로 보관돼요.</b> 크롬에서 적은 기록은 네이버앱에서 안 보이고,
+     그 반대도 마찬가지예요. <b>하나만 정해서(크롬 또는 사파리) 쭉 쓰시는 걸</b> 권해드려요.<br><br>
      브라우저 저장 공간은 보통 5MB 정도예요. 넘칠 것 같으면 백업을 받아두세요.`;
+}
+/* 브라우저가 저장한 기록을 함부로 지우지 않도록 부탁해둬요 */
+async function keepStorage(){
+  try{
+    if(navigator.storage?.persist && !(await navigator.storage.persisted()))
+      await navigator.storage.persist();
+  }catch(e){}
 }
 
 /* ══════════ 설정 ══════════ */
@@ -1638,7 +1952,8 @@ $$('.sheet').forEach(s => s.addEventListener('click', ev => {
 }));
 
 /* ══════════ 시작 ══════════ */
-load(); buildChips(); syncSettings(); renderAll(); storeInfo(); fetchRate(false);
+load(); buildChips(); syncSettings(); renderAll(); drawWarn(); storeInfo();
+fetchRate(false); keepStorage();
 </script>
 </body>
 </html>
