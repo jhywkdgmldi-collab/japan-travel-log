@@ -835,7 +835,9 @@ function openForm(id){
     $('#fTime').value = String(now.getHours()).padStart(2,'0')+':'+String(now.getMinutes()).padStart(2,'0');
     form = {lat:null, lng:null, addr:'', cur:'JPY', cat:'식사', pay:'현금', photos:[], receipt:null};
   }
-  $('#geoRes').innerHTML=''; $('#revRes').innerHTML=''; $('#ocrRes').innerHTML=''; _ocr=null;
+  $('#geoRes').innerHTML=''; $('#revRes').innerHTML=''; $('#ocrRes').innerHTML='';
+  _ocr=null; _lastText='';
+  if(_rcptSrc){ URL.revokeObjectURL(_rcptSrc); _rcptSrc=null; }
   markChips(); conv(); coordInfo(); drawThumbs();
   $('#btnFetchRev').style.display = D.gkey ? '' : 'none';
   $('#sheet').classList.add('on');
@@ -911,7 +913,9 @@ $('#fRcpt').addEventListener('change', async ev => {
   const f = ev.target.files[0];
   if(f){
     const ex = await readExif(f);
-    form.receipt = await shrink(f, 1400, .85);   // 글자를 읽어야 하니 조금 더 선명하게
+    if(_rcptSrc) URL.revokeObjectURL(_rcptSrc);
+    _rcptSrc = URL.createObjectURL(f);           // 읽을 땐 원본 그대로 (저장은 안 해요)
+    form.receipt = await shrink(f, 1000, .75);   // 보관용은 작게
     drawThumbs();
     autoFill(ex);                                 // 위치·시각 채우기
     scanReceipt();                                // 영수증 글자 읽기
@@ -1002,9 +1006,17 @@ const numOf = s => {
 
 /* 일본 영수증 텍스트에서 금액·날짜·가게·결제수단을 뽑아내요 */
 /* 글자 읽기가 일본어 사이에 넣은 공백을 붙여줘요 ("お に ぎり" → "おにぎり") */
-const squash = s => toHalf(s)
-  .replace(/([ぁ-んァ-ヶ一-龥ー々])[ \t]+(?=[ぁ-んァ-ヶ一-龥ー々])/g, '$1')
-  .replace(/([ぁ-んァ-ヶ一-龥ー々])[ \t]+(?=[ぁ-んァ-ヶ一-龥ー々])/g, '$1');
+/* 낱글자 사이의 공백 하나만 붙여요. 칸이 벌어진 곳(공백 2칸 이상)은 그대로 둬야
+   가게 이름에 옆 칸 잡음이 딸려오지 않아요. */
+const squash = s => {
+  let t = toHalf(s);
+  for(let i=0;i<8;i++){
+    const n = t.replace(/([ぁ-んァ-ヶ一-龥ー々])[ \t](?=[ぁ-んァ-ヶ一-龥ー々])/g, '$1');
+    if(n === t) break;
+    t = n;
+  }
+  return t;
+};
 
 function parseReceipt(raw){
   const norm  = squash(raw);
@@ -1055,12 +1067,16 @@ function parseReceipt(raw){
 
   /* ── 가게 이름: 위쪽 줄 중 숫자·주소가 아닌 첫 줄 ── */
   for(const l of lines.slice(0,6)){
-    const c = l.replace(/[*＊=＝\-—─~〜\s]/g,'');
+    const head = l.split(/\s{2,}/)[0]                       // 칸이 벌어지기 전까지만
+                  .replace(/^[*＊=＝\s]+/,'')
+                  .replace(/[ー\-—─~〜*＊\s]{2,}$/,'')       // 꼬리에 붙은 잡음 제거
+                  .trim();
+    const c = head.replace(/[*＊=＝\-—─~〜\s]/g,'');
     if(c.length < 2 || c.length > 28) continue;
     if(/^\d/.test(c)) continue;
     if(/(領収|レシート|RECEIPT|TEL|電話|〒|住所|店舗|No\.|登録番号|インボイス)/i.test(l)) continue;
     if(/(都|道|府|県).*(市|区|町|村)/.test(l)) continue;      // 주소 줄
-    out.place = l.replace(/^[*＊\s]+|[*＊\s]+$/g,'');
+    out.place = head;
     break;
   }
 
@@ -1097,50 +1113,142 @@ async function visionOCR(dataUrl, key){
   return res?.fullTextAnnotation?.text || '';
 }
 
+/* ── 사진 보정: 감열지 영수증은 이 과정이 정확도를 크게 좌우해요 ── */
+/* 흑백으로 바꾸고, 그림자에 강하도록 "주변 밝기 기준"으로 글자와 배경을 갈라요 */
+function prepImage(src, binarize, target){
+  return new Promise((res, rej)=>{
+    const img = new Image();
+    img.onerror = () => rej(new Error('사진을 여는 데 실패했어요'));
+    img.onload = () => {
+      try{
+        const T = target || 1500;
+        const s = T / Math.max(img.width, img.height);
+        const w = Math.max(1, Math.round(img.width  * (s<1?s:Math.min(s,2))));
+        const h = Math.max(1, Math.round(img.height * (s<1?s:Math.min(s,2))));
+        const cv = document.createElement('canvas');
+        cv.width = w; cv.height = h;
+        const cx = cv.getContext('2d', {willReadFrequently:true});
+        cx.filter = 'grayscale(1) contrast(1.2)';
+        cx.drawImage(img, 0, 0, w, h);
+        if(!binarize) return res(cv.toDataURL('image/jpeg', 0.9));
+
+        const d = cx.getImageData(0,0,w,h), p = d.data;
+        const g = new Float32Array(w*h);
+        for(let i=0,j=0;i<p.length;i+=4,j++) g[j] = p[i];
+
+        /* 적분영상 — 주변 평균 밝기를 빠르게 구하려고요 */
+        const W = w+1;
+        const I = new Float64Array(W*(h+1));
+        for(let y=0;y<h;y++){
+          let row = 0;
+          for(let x=0;x<w;x++){ row += g[y*w+x]; I[(y+1)*W+(x+1)] = I[y*W+(x+1)] + row; }
+        }
+        const r = Math.max(8, Math.round(Math.min(w,h)/40));
+        for(let y=0;y<h;y++){
+          const y1 = Math.max(0,y-r), y2 = Math.min(h-1,y+r);
+          for(let x=0;x<w;x++){
+            const x1 = Math.max(0,x-r), x2 = Math.min(w-1,x+r);
+            const area = (x2-x1+1)*(y2-y1+1);
+            const sum = I[(y2+1)*W+(x2+1)] - I[y1*W+(x2+1)] - I[(y2+1)*W+x1] + I[y1*W+x1];
+            const v = g[y*w+x] < (sum/area) * 0.88 ? 0 : 255;
+            const i = (y*w+x)*4;
+            p[i] = p[i+1] = p[i+2] = v; p[i+3] = 255;
+          }
+        }
+        cx.putImageData(d,0,0);
+        res(cv.toDataURL('image/png'));
+      }catch(e){ rej(new Error('사진 보정에 실패했어요')); }
+    };
+    img.src = src;
+  });
+}
+
 /* Tesseract (키 없이 · 처음 한 번 글자 데이터를 받아와요) */
 function loadTesseract(){
   if(window.Tesseract) return Promise.resolve();
   return new Promise((res,rej)=>{
     const s = document.createElement('script');
-    s.src = 'https://cdnjs.cloudflare.com/ajax/libs/tesseract.js/5.1.1/tesseract.min.js';
+    s.src = 'https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js';
     s.onload = res;
-    s.onerror = () => rej(new Error('글자 읽기 도구를 못 불러왔어요'));
+    s.onerror = () => rej(new Error('글자 읽기 도구를 못 불러왔어요 (인터넷 확인)'));
     document.head.appendChild(s);
   });
 }
-async function tessOCR(dataUrl, onProgress){
+let _worker = null, _onProg = () => {};
+async function getWorker(){
+  if(_worker) return _worker;
   await loadTesseract();
-  const worker = await Tesseract.createWorker('jpn', 1, {
+  _worker = await Tesseract.createWorker('jpn', 1, {
     logger: m => {
-      if(m.status === 'downloading tesseract core' || m.status === 'loading language traineddata')
-        onProgress(`글자 데이터 받는 중… ${Math.round((m.progress||0)*100)}%`);
-      else if(m.status === 'recognizing text')
-        onProgress(`영수증 읽는 중… ${Math.round((m.progress||0)*100)}%`);
+      const pct = Math.round((m.progress||0)*100);
+      if(/download|load/i.test(m.status)) _onProg(`글자 데이터 준비 중… ${pct}%`);
+      else if(m.status === 'recognizing text') _onProg(`영수증 읽는 중… ${pct}%`);
     }
   });
-  try{
-    const { data:{ text } } = await worker.recognize(dataUrl);
-    return text;
-  } finally { await worker.terminate(); }
+  return _worker;
+}
+async function tessOCR(src, onProgress, psm){
+  _onProg = onProgress || (()=>{});
+  const worker = await getWorker();
+  await worker.setParameters({
+    tessedit_pageseg_mode: String(psm || 6),
+    preserve_interword_spaces: '1'
+  });
+  const { data:{ text } } = await worker.recognize(src);
+  return text;
+}
+function withTimeout(promise, ms, msg){
+  return Promise.race([
+    promise,
+    new Promise((_,rej)=>setTimeout(()=>rej(new Error(msg)), ms))
+  ]);
 }
 
-let _ocr = null;   // 읽어낸 결과를 잠깐 담아둬요
+let _ocr = null;        // 읽어낸 결과를 잠깐 담아둬요
+let _rcptSrc = null;    // 방금 찍은 원본 사진 (저장은 안 하고 읽을 때만 써요)
+let _lastText = '';     // 읽어낸 원본 글자 (안 맞을 때 보여드리려고요)
+
 async function scanReceipt(){
   if(!form.receipt){ toast('먼저 영수증 사진을 넣어주세요'); return; }
   const box = $('#ocrRes');
   const key = (D.gkey||'').trim();
+  const app = inAppName();
   const say = t => box.innerHTML = `<div class="revbox"><div class="r">${t}</div></div>`;
 
-  say(key ? '영수증을 읽는 중이에요…'
-          : '영수증을 읽는 중이에요…<br><span style="color:#A69CA2;font-size:12px">처음엔 글자 데이터를 받느라 30초쯤 걸려요 (와이파이 권장)</span>');
+  say('영수증 사진을 다듬는 중이에요…');
   try{
+    const src = _rcptSrc || form.receipt;
     let text = '';
+
+    /* ① 구글 키가 있으면 원본에 가깝게 보내서 읽어요 (제일 정확) */
     if(key){
-      try{ text = await visionOCR(form.receipt, key); }
-      catch(e){ say(`구글로 읽기 실패 — 다른 방법으로 해볼게요<br><span style="color:#A69CA2;font-size:12px">${esc(e.message)}</span>`); }
+      try{
+        const clean = await prepImage(src, false, 1600);
+        text = await withTimeout(visionOCR(clean, key), 30000, '구글 응답이 너무 느려요');
+      }catch(e){
+        say(`구글로 읽기가 안 됐어요 — 다른 방법으로 해볼게요<br>
+             <span style="color:#A69CA2;font-size:12px">${esc(e.message)}</span>`);
+      }
     }
-    if(!text.trim()) text = await tessOCR(form.receipt, say);
-    if(!text.trim()) throw new Error('글자를 못 찾았어요');
+
+    /* ② 키가 없거나 실패하면 폰 안에서 직접 읽어요 */
+    if(!text.trim()){
+      if(app) say(`${app} 안에서는 영수증 읽기가 막힐 수 있어요…<br>
+                   <span style="color:#A69CA2;font-size:12px">크롬·사파리에서 열면 잘 돼요</span>`);
+      const bw = await prepImage(src, true, 1500);
+      say('글자를 읽는 중이에요…<br><span style="color:#A69CA2;font-size:12px">처음 한 번은 준비하느라 30초쯤 걸려요</span>');
+      text = await withTimeout(tessOCR(bw, say, 6), 180000, '시간이 너무 오래 걸려요');
+
+      /* 금액을 못 찾으면 읽는 방식을 바꿔 한 번 더 */
+      if(!parseReceipt(text).amount){
+        say('한 번 더 꼼꼼히 읽어볼게요…');
+        const t2 = await withTimeout(tessOCR(bw, say, 4), 120000, '시간이 너무 오래 걸려요');
+        if(parseReceipt(t2).amount) text = t2;
+        else if(t2.trim().length > text.trim().length) text = t2;
+      }
+    }
+    if(!text.trim()) throw new Error('글자를 하나도 못 찾았어요');
+    _lastText = text;
 
     const g = parseReceipt(text);
     _ocr = g;
@@ -1153,10 +1261,15 @@ async function scanReceipt(){
     ].filter(Boolean);
 
     if(!rows.length){
-      box.innerHTML = `<div class="revbox"><div class="r">
-        글자는 읽었는데 금액·날짜를 못 찾았어요 🥲<br>
-        <span style="color:#A69CA2;font-size:12px">사진이 흐리거나 접혀 있으면 잘 안 돼요. 평평하게 펴고 밝은 곳에서 다시 찍어보세요.</span>
-      </div></div>`;
+      box.innerHTML = `<div class="revbox">
+        <div class="hd">🧾 글자는 읽었는데 금액을 못 찾았어요</div>
+        <div class="r" style="cursor:default">
+          <span style="color:#A69CA2;font-size:12px">
+            영수증을 <b>평평하게 펴고</b>, <b>밝은 곳</b>에서, <b>화면에 꽉 차게</b> 다시 찍으면 잘 돼요.
+          </span>
+        </div>
+        ${numberPicks(text)}
+      </div>`;
       return;
     }
     box.innerHTML = `<div class="revbox">
@@ -1168,11 +1281,48 @@ async function scanReceipt(){
       </div>
     </div>`;
   }catch(e){
-    box.innerHTML = `<div class="revbox"><div class="r">
-      영수증을 못 읽었어요 🥲<br>
-      <span style="color:#A69CA2;font-size:12px">${esc(e.message)} — 금액만 직접 적어주셔도 괜찮아요.</span>
-    </div></div>`;
+    box.innerHTML = `<div class="revbox">
+      <div class="hd">🥲 영수증을 못 읽었어요</div>
+      <div class="r" style="cursor:default">
+        ${esc(e.message)}<br>
+        <span style="color:#A69CA2;font-size:12px">
+          ${app ? `<b>${app} 안에서는 잘 안 돼요.</b> 크롬·사파리에서 열어주세요.<br>` : ''}
+          금액만 직접 적어주셔도 괜찮아요. 영수증 사진은 이미 저장돼 있어요.
+        </span>
+      </div>
+      ${_lastText ? '<div class="r" onclick="showRawText()">🔎 읽어낸 글자 보기</div>' : ''}
+    </div>`;
   }
+}
+/* 자동으로 못 고르면, 읽어낸 숫자들을 직접 고르게 해드려요 */
+function numberPicks(text){
+  const nums = [...new Set(
+    squash(text).split('\n')
+      .flatMap(l => (l.match(/\d[\d,，]{1,8}/g) || []))
+      .map(numOf)
+      .filter(v => v && v >= 50 && v < 3000000)
+  )].sort((a,b)=>b-a).slice(0, 8);
+  window._nums = nums;
+  if(!nums.length) return '';
+  return `<div class="r" style="cursor:default;background:#FFF8EE">
+      <span style="font-weight:800;color:#B4671A">읽어낸 숫자 중에 골라주세요</span>
+    </div>`
+    + nums.map((v,i)=>`<div class="r" onclick="pickNum(${i})"><b>${nf(v)}엔</b></div>`).join('');
+}
+function pickNum(i){
+  const v = window._nums?.[i]; if(!v) return;
+  $('#fAmt').value = v; form.cur = 'JPY'; markChips(); conv();
+  $('#ocrRes').innerHTML = `<div class="revbox"><div class="r">
+    <span class="ok">✅ ${nf(v)}엔 넣었어요.</span> 나머지는 손으로 채워주세요.</div></div>`;
+  toast(`${nf(v)}엔 넣었어요 💴`);
+}
+function showRawText(){
+  const t = (_lastText||'').trim();
+  if(!t){ toast('읽어낸 글자가 없어요'); return; }
+  $('#ocrRes').innerHTML = `<div class="revbox">
+    <div class="hd">🔎 영수증에서 읽어낸 글자</div>
+    <div class="r" style="cursor:default;white-space:pre-wrap;font-size:12px;max-height:240px;overflow:auto">${esc(t)}</div>
+  </div>`;
 }
 function applyOcr(){
   const g = _ocr; if(!g) return;
