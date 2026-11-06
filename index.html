@@ -48,6 +48,9 @@ header .inner{max-width:720px;margin:0 auto;position:relative;z-index:1}
 .brand{display:flex;align-items:center;gap:7px;font-size:12px;font-weight:800;color:#C4477F;margin-bottom:5px}
 .brand .dots{display:flex;gap:3px}
 .brand .dots i{width:7px;height:7px;border-radius:50%;display:block}
+.syncdot{margin-left:auto;font-size:13px;cursor:pointer;opacity:.85;padding:0 2px}
+.syncdot.err{animation:blink 1.4s infinite}
+@keyframes blink{50%{opacity:.3}}
 #tripTitle{
   font-size:25px;background:transparent;border:none;color:var(--ink);
   width:100%;padding:0;outline:none;line-height:1.25;
@@ -259,6 +262,7 @@ pre.out{
         <i style="background:#EC008C"></i><i style="background:#00AEEF"></i><i style="background:#FFF200"></i>
       </span>
       일본여행 기록장
+      <span id="syncDot" class="syncdot" style="display:none" onclick="goSync()"></span>
     </div>
     <input id="tripTitle" class="cute" placeholder="여행 제목을 적어주세요">
     <div class="hdr-sub" id="tripPeriod">날짜를 설정해 주세요</div>
@@ -375,6 +379,11 @@ pre.out{
     </div>
     <label class="f">함께 간 인원</label>
     <input type="number" id="sPeople" min="1" placeholder="2">
+  </div>
+
+  <div class="card" id="syncCard">
+    <h3>☁️ 인터넷에 저장 <span style="font-size:11px;color:#B7A7B0;font-weight:600">기기끼리 같이 보기</span></h3>
+    <div id="syncBox"></div>
   </div>
 
   <div class="card">
@@ -562,7 +571,8 @@ const CATS = [
 ];
 const PAYS = ['현금', '신용카드', '트래블카드', 'IC교통카드', '선결제'];
 
-let D = { title:'', start:'', end:'', rate:920, people:1, gkey:'', entries:[] };
+let D = { title:'', start:'', end:'', rate:920, people:1, gkey:'', entries:[],
+          del:{}, mt:0, sync:{ code:'', on:false, at:0, photos:true } };
 let todayRate = null;      // 오늘 자동으로 가져온 환율 {v, date}
 let editId = null;
 let form = { lat:null, lng:null, addr:'', cur:'JPY', cat:'식사', pay:'현금', photos:[], receipt:null };
@@ -572,16 +582,216 @@ let map, pickMap, pickMarker, layerGroup;
 function load(){
   try{ const r = localStorage.getItem(KEY); if(r) D = Object.assign(D, JSON.parse(r)); }
   catch(e){ console.warn(e); }
+  D.del  = D.del  || {};
+  D.sync = Object.assign({ code:'', on:false, at:0, photos:true }, D.sync||{});
+  D.entries.forEach(e=>{ if(!e.mt) e.mt = 1; });
 }
-function save(){
+function save(push){
+  D.mt = Date.now();
   try{ localStorage.setItem(KEY, JSON.stringify(D)); }
   catch(e){
     alert('저장 공간이 가득 찼어요 😢\n\n[내보내기 → 백업 저장]으로 파일을 받아두신 뒤,\n사진이 많은 오래된 기록을 정리해 주세요.');
   }
+  if(push !== false) schedulePush();
 }
 function toast(msg){
   const t = $('#toast'); t.textContent = msg; t.classList.add('on');
   clearTimeout(t._h); t._h = setTimeout(()=>t.classList.remove('on'), 2400);
+}
+
+/* ══════════ ☁️ 인터넷에 저장 (기기끼리 같이 보기) ══════════ */
+const SB_URL = 'https://qlqhseebdqcbistxhzuh.supabase.co';
+const SB_KEY = 'sb_publishable_H2krKYQIc1Y8dhMupAQy6g_LHg5EDVD';
+let pushTimer = null, syncing = false, lastPushed = '';
+
+/* 헷갈리는 글자(O·0·I·1)는 빼고 만들어요 */
+function newCode(){
+  const A = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  const r = new Uint8Array(20); crypto.getRandomValues(r);
+  let s = ''; r.forEach(v => s += A[v % A.length]);
+  return s.replace(/(.{5})(?=.)/g, '$1-');
+}
+const cleanCode = c => String(c||'').toUpperCase().replace(/[^A-Z0-9]/g,'')
+                        .replace(/(.{5})(?=.)/g,'$1-');
+
+async function sbCall(fn, body){
+  const r = await fetch(`${SB_URL}/rest/v1/rpc/${fn}`, {
+    method:'POST',
+    headers:{'Content-Type':'application/json', apikey:SB_KEY, Authorization:'Bearer '+SB_KEY},
+    body: JSON.stringify(body)
+  });
+  const t = await r.text();
+  if(!r.ok) throw new Error((t||'').slice(0,100) || ('서버 응답 ' + r.status));
+  return t ? JSON.parse(t) : null;
+}
+
+function syncPayload(){
+  const keep = D.sync.photos !== false;
+  return {
+    title:D.title, start:D.start, end:D.end, rate:D.rate, people:D.people,
+    mt:D.mt||0, del:D.del||{},
+    entries: D.entries.map(e => keep ? e : Object.assign({}, e, {photos:[], receipt:null}))
+  };
+}
+
+/* 두 기기에서 따로 적은 기록을 안 겹치게 합쳐요 */
+function mergeRemote(R){
+  if(!R) return;
+  const del = Object.assign({}, R.del||{});
+  Object.keys(D.del||{}).forEach(k => del[k] = Math.max(del[k]||0, D.del[k]||0));
+
+  /* 사진은 가진 쪽에서 챙겨둬요 (사진 동기화를 꺼둔 기기 때문에 사라지지 않게) */
+  const bank = {}, pics = e => (e.photos?.length||0) + (e.receipt?1:0);
+  const by = {};
+  [...(R.entries||[]), ...D.entries].forEach(e=>{
+    if(!e?.id) return;
+    if(!bank[e.id] || pics(e) > pics(bank[e.id])) bank[e.id] = e;
+    const cur = by[e.id];
+    if(!cur || (e.mt||0) > (cur.mt||0)) by[e.id] = e;
+  });
+  D.entries = Object.values(by)
+    .filter(e => !(del[e.id] && del[e.id] >= (e.mt||0)))
+    .map(e => (pics(e) === 0 && bank[e.id] && pics(bank[e.id]) > 0)
+              ? Object.assign({}, e, {photos:bank[e.id].photos, receipt:bank[e.id].receipt})
+              : e);
+  D.del = del;
+
+  if((R.mt||0) > (D.mt||0)){
+    ['title','start','end','rate','people'].forEach(k=>{
+      if(R[k] !== undefined && R[k] !== '' && R[k] !== null) D[k] = R[k];
+    });
+  }
+}
+
+async function syncPull(silent){
+  if(!D.sync.on || !D.sync.code) return;
+  syncBadge('busy');
+  try{
+    const R = await sbCall('log_pull', { p_code: D.sync.code });
+    if(R) mergeRemote(R);
+    D.sync.at = Date.now();
+    save(false); renderAll(); drawSync(); syncBadge('ok');
+    if(!silent) toast('불러왔어요 ☁️');
+    schedulePush();                        // 합친 결과를 다시 올려둬요
+  }catch(e){
+    syncBadge('err'); if(!silent) toast('불러오기 실패 — ' + e.message);
+  }
+}
+function schedulePush(){
+  if(!D.sync.on || !D.sync.code) return;
+  clearTimeout(pushTimer);
+  syncBadge('wait');
+  pushTimer = setTimeout(syncPush, 2500);
+}
+async function syncPush(){
+  if(!D.sync.on || !D.sync.code || syncing) return;
+  const payload = syncPayload();
+  const body = JSON.stringify(payload);
+  if(body === lastPushed){ syncBadge('ok'); return; }
+  if(body.length > 6_000_000){
+    syncBadge('err');
+    toast('기록이 너무 커요. 설정에서 사진 동기화를 꺼주세요');
+    return;
+  }
+  syncing = true; syncBadge('busy');
+  try{
+    await sbCall('log_push', { p_code: D.sync.code, p_data: payload });
+    lastPushed = body; D.sync.at = Date.now();
+    try{ localStorage.setItem(KEY, JSON.stringify(D)); }catch(e){}
+    syncBadge('ok'); drawSync();
+  }catch(e){ syncBadge('err'); }
+  finally{ syncing = false; }
+}
+
+function syncBadge(state){
+  const el = $('#syncDot'); if(!el) return;
+  if(!D.sync.on){ el.style.display='none'; return; }
+  el.style.display = '';
+  const M = { ok:['☁️','저장됨'], busy:['🔄','저장 중'], wait:['🕒','곧 저장'], err:['⚠️','저장 실패'] };
+  const [i,t] = M[state] || M.ok;
+  el.textContent = i; el.title = t;
+  el.className = 'syncdot' + (state==='err' ? ' err' : '');
+}
+function goSync(){
+  $$('nav.tabs .t').forEach(x=>x.classList.remove('on'));
+  $$('section.page').forEach(x=>x.classList.remove('on'));
+  document.querySelector('[data-p=set]').classList.add('on');
+  $('#p-set').classList.add('on');
+  drawSync(); storeInfo();
+  $('#syncCard').scrollIntoView({behavior:'smooth', block:'center'});
+}
+
+/* ── 설정 화면 ── */
+function drawSync(){
+  const b = $('#syncBox'); if(!b) return;
+  if(!D.sync.on){
+    b.innerHTML = `
+      <p class="muted" style="margin:0 0 12px">
+        지금은 <b>이 브라우저 안에만</b> 저장돼요. 그래서 브라우저를 바꾸거나 앱이 정리하면 사라질 수 있어요.<br><br>
+        켜두면 기록이 <b>인터넷에 함께 보관</b>돼서, <b>폰·노트북 어디서나 같은 기록</b>을 보고
+        기기를 바꿔도 그대로 따라와요.
+      </p>
+      <button class="btn full" onclick="syncStart()">☁️ 인터넷 저장 켜기</button>
+      <button class="btn sec sm full" style="margin-top:8px" onclick="syncJoin()">
+        이미 쓰던 코드로 불러오기
+      </button>`;
+    return;
+  }
+  const at = D.sync.at ? new Date(D.sync.at) : null;
+  b.innerHTML = `
+    <div style="background:var(--p-mint);border-radius:14px;padding:12px 13px;margin-bottom:12px">
+      <div style="font-weight:800;color:#15805A;font-size:13px">✅ 인터넷에 저장되고 있어요</div>
+      <div class="muted" style="margin-top:3px;color:#3C7A66">
+        마지막 저장 ${at ? `${at.getMonth()+1}월 ${at.getDate()}일 ${String(at.getHours()).padStart(2,'0')}:${String(at.getMinutes()).padStart(2,'0')}` : '아직 없음'}
+      </div>
+    </div>
+    <label class="f">내 기록장 코드</label>
+    <div style="background:#fff;border:1.5px dashed #FFB8DC;border-radius:14px;padding:13px;
+                text-align:center;font-size:17px;font-weight:800;letter-spacing:1px;
+                word-break:break-all;line-height:1.5">${esc(D.sync.code)}</div>
+    <div class="row" style="margin-top:9px">
+      <button class="btn sec sm" onclick="copyCode()">📋 코드 복사</button>
+      <button class="btn sec sm" onclick="syncPull()">🔄 지금 불러오기</button>
+    </div>
+    <p class="muted" style="margin:11px 0 0">
+      <b>다른 기기에서 보려면</b> 그 기기에서 이 앱을 열고
+      <b>「이미 쓰던 코드로 불러오기」</b>에 이 코드를 넣어주세요.<br><br>
+      ⚠️ <b>이 코드를 아는 사람은 기록을 볼 수 있어요.</b> 남에게 주지 마세요.
+    </p>
+    <div class="hr"></div>
+    <label class="f">사진도 함께 저장할까요?</label>
+    <div class="chips">
+      <div class="chip ${D.sync.photos!==false?'on':''}" onclick="syncPhotos(true)">사진 포함</div>
+      <div class="chip ${D.sync.photos===false?'on':''}" onclick="syncPhotos(false)">글만 (데이터 절약)</div>
+    </div>
+    <p class="muted" style="margin:9px 0 0">사진까지 담으면 용량이 커져요. 데이터가 아깝다면 「글만」으로 두세요.</p>
+    <div class="hr"></div>
+    <button class="btn sec sm full" onclick="syncStop()">이 기기에서 인터넷 저장 끄기</button>`;
+}
+async function syncStart(){
+  D.sync.code = newCode(); D.sync.on = true;
+  save(false); drawSync(); syncBadge('busy');
+  await syncPush();
+  toast('켰어요! 코드를 꼭 적어두세요 ☁️');
+}
+async function syncJoin(){
+  const v = prompt('쓰시던 기록장 코드를 넣어주세요\n(대소문자·빗금은 신경 안 쓰셔도 돼요)');
+  if(!v) return;
+  const code = cleanCode(v);
+  if(code.replace(/-/g,'').length < 16){ toast('코드가 짧아요. 다시 확인해 주세요'); return; }
+  D.sync.code = code; D.sync.on = true;
+  save(false); drawSync();
+  await syncPull();
+}
+function syncStop(){
+  if(!confirm('이 기기에서 인터넷 저장을 끌까요?\n인터넷에 있는 기록은 그대로 남아요. 코드만 있으면 다시 불러올 수 있어요.')) return;
+  D.sync.on = false; save(false); drawSync(); syncBadge(); toast('껐어요');
+}
+function syncPhotos(v){ D.sync.photos = v; lastPushed=''; save(); drawSync(); }
+function copyCode(){
+  navigator.clipboard.writeText(D.sync.code)
+    .then(()=>toast('코드를 복사했어요 📋'))
+    .catch(()=>toast('코드를 길게 눌러 복사해 주세요'));
 }
 
 /* ══════════ 환율 ══════════ */
@@ -862,6 +1072,7 @@ function saveEntry(){
   }
   const e = {
     id: editId || ('e'+Date.now()+Math.random().toString(36).slice(2,6)),
+    mt: Date.now(),
     date: $('#fDate').value, time: $('#fTime').value,
     place, cat: form.cat, pay: form.pay, cur: form.cur, amt,
     rate: Number($('#fRate').value) || baseRate(),
@@ -879,6 +1090,7 @@ function saveEntry(){
 function delEntry(id){
   if(!confirm('이 기록을 지울까요? 되돌릴 수 없어요.')) return;
   D.entries = D.entries.filter(x=>x.id!==id);
+  D.del[id] = Date.now();                 // 다른 기기에서 되살아나지 않게 표시해둬요
   save(); renderAll(); toast('지웠어요');
 }
 
@@ -2036,8 +2248,12 @@ $('#impFile').addEventListener('change', ev=>{
       const j = JSON.parse(fr.result);
       if(!Array.isArray(j.entries)) throw 0;
       if(!confirm(`기록 ${j.entries.length}개를 불러올까요?\n지금 있는 기록은 지워지고 이걸로 바뀝니다.`)) return;
-      D = Object.assign({title:'',start:'',end:'',rate:920,people:1,gkey:'',entries:[]}, j);
-      save(); syncSettings(); renderAll(); toast('불러왔어요! 🎉');
+      const keepSync = D.sync;
+      D = Object.assign({title:'',start:'',end:'',rate:920,people:1,gkey:'',entries:[],del:{},mt:0}, j);
+      D.sync = keepSync;                      // 동기화 설정은 이 기기 것을 지켜요
+      D.entries.forEach(e=>{ if(!e.mt) e.mt = Date.now(); });
+      lastPushed = '';
+      save(); syncSettings(); renderAll(); drawSync(); toast('불러왔어요! 🎉');
     }catch(e){ alert('백업 파일이 아닌 것 같아요. 다시 확인해 주세요.'); }
   };
   fr.readAsText(f); ev.target.value='';
@@ -2045,8 +2261,12 @@ $('#impFile').addEventListener('change', ev=>{
 function wipe(){
   if(!confirm('정말 전부 지울까요? 되돌릴 수 없어요.\n먼저 [백업 저장]을 해두시는 걸 권해드려요.')) return;
   if(!confirm('마지막 확인이에요. 진짜 지울까요?')) return;
-  D = {title:'',start:'',end:'',rate:920,people:1,gkey:D.gkey||'',entries:[]};
-  save(); syncSettings(); renderAll(); storeInfo(); toast('전부 비웠어요');
+  const del = Object.assign({}, D.del||{}), now = Date.now();
+  D.entries.forEach(e => del[e.id] = now);    // 다른 기기에서도 같이 지워지게 표시
+  D = {title:'',start:'',end:'',rate:920,people:1,gkey:D.gkey||'',entries:[],
+       del, mt:now, sync:D.sync};
+  lastPushed = '';
+  save(); syncSettings(); renderAll(); storeInfo(); drawSync(); toast('전부 비웠어요');
 }
 function storeInfo(){
   const mb = (new Blob([JSON.stringify(D)]).size/1048576).toFixed(2);
@@ -2102,8 +2322,26 @@ $$('.sheet').forEach(s => s.addEventListener('click', ev => {
 }));
 
 /* ══════════ 시작 ══════════ */
-load(); buildChips(); syncSettings(); renderAll(); drawWarn(); storeInfo();
+load(); buildChips(); syncSettings(); renderAll(); drawWarn(); storeInfo(); drawSync();
 fetchRate(false); keepStorage();
+
+/* 앱을 열 때, 그리고 다시 화면으로 돌아올 때 인터넷에서 최신 기록을 받아와요 */
+if(D.sync.on && D.sync.code){ syncBadge('busy'); syncPull(true); }
+document.addEventListener('visibilitychange', ()=>{
+  if(document.visibilityState === 'visible' && D.sync.on && D.sync.code) syncPull(true);
+});
+window.addEventListener('online', ()=>{ if(D.sync.on) schedulePush(); });
+/* 앱을 닫기 직전, 아직 못 올린 게 있으면 바로 올려요 */
+window.addEventListener('pagehide', ()=>{
+  if(!D.sync.on || !D.sync.code) return;
+  const body = JSON.stringify(syncPayload());
+  if(body === lastPushed || body.length > 6_000_000) return;
+  try{
+    navigator.sendBeacon(`${SB_URL}/rest/v1/rpc/log_push?apikey=${SB_KEY}`,
+      new Blob([JSON.stringify({p_code:D.sync.code, p_data:JSON.parse(body)})],
+               {type:'application/json'}));
+  }catch(e){}
+});
 </script>
 </body>
 </html>
